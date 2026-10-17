@@ -2,11 +2,14 @@ import Foundation
 
 public enum PostStoreError: Error, Equatable, CustomStringConvertible {
     case duplicatePost(shortID: String, externalID: String)
+    case ambiguousPrefix(prefix: String, candidates: [String])
 
     public var description: String {
         switch self {
         case .duplicatePost(let shortID, _):
             return "该贴文已在库中（编码: \(shortID)），不再重复录入；如需修改请使用 update \(shortID)"
+        case .ambiguousPrefix(let prefix, let candidates):
+            return "前缀 \(prefix) 匹配到多条贴文（\(candidates.joined(separator: "、"))），请用更长前缀或完整编码指定其中一条"
         }
     }
 }
@@ -254,6 +257,8 @@ public struct PostStore {
 
     /// 接受内部 id、8 位短编码或更长前缀（`#a1b2c3d4`、带连字符形态都行）、
     /// 纯数字的帖子 id，或原始链接。
+    /// 前缀命中多条时抛 `PostStoreError.ambiguousPrefix`，不按保存时间静默挑选——
+    /// 否则 update/delete 会选中错误条目。
     public func resolve(target: String) async throws -> Post? {
         var trimmed = target.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.contains("x.com") || trimmed.contains("twitter.com") {
@@ -282,6 +287,14 @@ public struct PostStore {
             WHERE LOWER(REPLACE(p.id, '-', '')) LIKE ?
             ORDER BY p.saved_at DESC LIMIT 2
             """, [.text("\(prefix)%")])
+        if rows.count > 1 {
+            // 候选直接取原始 id 列，按 Post.shortID 同样规则折成 8 位短编码回显
+            throw PostStoreError.ambiguousPrefix(
+                prefix: prefix,
+                candidates: rows.compactMap { $0["id"]?.string }.map {
+                    String($0.replacing("-", with: "").lowercased().prefix(8))
+                })
+        }
         return try await hydrate(rows).first
     }
 

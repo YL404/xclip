@@ -396,6 +396,35 @@ struct PostStoreTests {
     }
 
     @Test
+    func resolveRejectsAmbiguousPrefix() async throws {
+        let db = try Database(path: temporaryDatabaseURL())
+        let store = PostStore(db)
+        // 两条贴文共享 4 位前缀：歧义必须报错，不能按 saved_at 静默挑最新一条
+        try await db.run("""
+            INSERT INTO posts (id, platform, external_id, url, author_handle, text, saved_at)
+            VALUES ('ab12aaaa-1111-2222-3333-444444444444', 'x', 'e1', 'https://x.com/a/status/1', 'a', 'old', 1)
+            """)
+        try await db.run("""
+            INSERT INTO posts (id, platform, external_id, url, author_handle, text, saved_at)
+            VALUES ('ab12bbbb-5555-6666-7777-888888888888', 'x', 'e2', 'https://x.com/a/status/2', 'a', 'new', 2)
+            """)
+
+        do {
+            // 不抛错的话旧实现会返回 saved_at 最新的那条，断言在此兜底
+            #expect(try await store.resolve(target: "ab12") == nil)
+            Issue.record("歧义前缀应抛 ambiguousPrefix")
+        } catch let error as PostStoreError {
+            guard case .ambiguousPrefix(_, let candidates) = error else {
+                Issue.record("错误类型不对: \(error)")
+                return
+            }
+            #expect(Set(candidates) == ["ab12aaaa", "ab12bbbb"])
+        }
+        // 更长前缀无歧义，仍正常命中
+        #expect(try await store.resolve(target: "ab12a")?.id == "ab12aaaa-1111-2222-3333-444444444444")
+    }
+
+    @Test
     func resolveNumericShortID() async throws {
         let db = try Database(path: temporaryDatabaseURL())
         let store = PostStore(db)
