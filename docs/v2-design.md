@@ -158,9 +158,8 @@ not claim a complete offline archive. Do not let old Swift and new Go implementa
 conflicting schemas to the same database.
 
 Add Go tests next to core behavior and frontend tests for meaningful state/interaction logic.
-Keep the existing Swift build and tests passing until their replacement is ready. Update the
-agent skill, CLI help, README, and AGENTS.md with the implementation; documentation and the JSON
-schema ship with the behavior they describe.
+Update the agent skill, CLI help, README, and AGENTS.md with the implementation; documentation and
+the JSON schema ship with the behavior they describe.
 
 ## Acceptance for the first vertical slice
 
@@ -173,5 +172,4 @@ schema ship with the behavior they describe.
   access to the original directory.
 - Exercise concurrent read/write behavior and verify that an interrupted/failed import does not
   produce a complete-looking partial entry.
-- Run `go test ./...`, the frontend checks, the MyGo production build, and the existing Swift
-  tests while they remain in the repository.
+- Run `go test ./...`, the frontend checks, and the MyGo production build.

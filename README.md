@@ -48,12 +48,11 @@ internal/service/      MyGo bindings and the scoped media handler
 web/                   TypeScript frontend, tests, and Vite/TypeScript config
 resources/             App icon
 scripts/               Packaging helper
-docs/                  Product design and v1 notes
-legacy/swift/          v1 Swift app and CLI (frozen)
+docs/                  Product design notes
 ```
 
 The library defaults to `~/.xclip/`. Put `--home <dir>` before the command, or set `XCLIP_HOME`,
-to relocate it. v2 uses `library.db`; the v1 Swift `xclip.db` in the same folder is never opened.
+to relocate it. v2 uses `library.db`; the v1 `xclip.db` in the same folder is only read by `migrate`.
 
 ## CLI
 

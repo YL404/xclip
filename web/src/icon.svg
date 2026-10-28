@@ -4,7 +4,7 @@
     图形是两张错位堆叠的卡片，右上角斜切——clip 手势，也是「库里堆叠的贴文」。
     偏移量 (119,-119) 让两张卡的斜切边保持平行，堆叠关系干净。
     改尺寸只改 width/height，viewBox 不变；颜色集中在下面三个 fill。
-    几何与 legacy/swift/tools/render-icon.swift 保持一致，改图形请两边同步。
+    改图形时同步更新 resources/icon.png。
   -->
   <defs>
     <clipPath id="containerClip">

@@ -31,7 +31,7 @@ provenance only. Do not make display or search depend on the original file.
 - **Language**: docs are English; code comments and all CLI/App strings are Chinese by design.
   Do not translate either direction as a drive-by change.
 - **Schema**: migrations are incremental through `PRAGMA user_version`, never backward. v2 uses
-  `library.db`, separate from the legacy Swift `xclip.db`.
+  `library.db`, separate from the v1 `xclip.db`.
 - **CLI output is a contract**: `--json` carries `schema_version=2`; text and summaries are never
   truncated; each asset exposes `local_path`; output stays free of author/metrics noise.
   `summary` is validated as English, 1–2 sentences, ≤400 characters. Tags are (English slug +
@@ -43,10 +43,3 @@ provenance only. Do not make display or search depend on the original file.
   trusted app origin. Media is served only by asset ID, never by an arbitrary path.
 - **Tests**: data-layer behavior in `internal/core`, CLI flow in `cmd/xclip`, frontend helpers in
   `test`. Add cases next to the behavior you change.
-
-## Legacy Swift implementation
-
-`legacy/swift/` holds the v1 Swift implementation (`Package.swift`, `Sources/`, `Tests/`, `tools/`,
-`designs/`); build and test it from that directory. It remains until the Go/MyGo app has covered v1
-behavior and migration has been accepted; do not add features there. Remove it only in a dedicated
-cleanup change, not as a drive-by edit.
