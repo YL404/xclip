@@ -239,7 +239,8 @@ async function refresh(): Promise<void> {
   const request = ++refreshRequest;
   const [tags, catalog] = await Promise.all([Library.tags(), Library.search("", [], "")]);
   if (request !== refreshRequest) return;
-  state.tags = tags; state.catalog = catalog; state.contentBytes = contentSize(catalog);
+  state.tags = [...tags].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "zh-CN"));
+  state.catalog = catalog; state.contentBytes = contentSize(catalog);
   await loadResults();
 }
 function setSort(value: string): void { state.sort = value; const select = $<HTMLSelectElement>("#sort"); if (value === "viewed" && !select.querySelector('[value="viewed"]')) select.insertAdjacentHTML("afterbegin", '<option value="viewed">最近查看</option>'); select.value = value; if (value !== "viewed") select.querySelector('[value="viewed"]')?.remove(); }

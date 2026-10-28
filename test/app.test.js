@@ -128,3 +128,14 @@ test("sidebar reports unique content bytes and the import trigger stays named", 
     assert.equal(app.$("#import-menu").getAttribute("aria-label"), "收录");
   } finally { await app.window.happyDOM.abort(); app.window.close(); }
 });
+
+test("tags are ordered by count descending", async () => {
+  const app = await start({ tags: async () => [
+    { slug: "low", name: "少", description: "", count: 1 },
+    { slug: "high", name: "多", description: "", count: 9 },
+    { slug: "mid", name: "中", description: "", count: 4 },
+  ] });
+  try {
+    assert.deepEqual([...app.window.document.querySelectorAll("#tag-nav .nav-item")].map((node) => node.textContent), ["多9", "中4", "少1"]);
+  } finally { await app.window.happyDOM.abort(); app.window.close(); }
+});

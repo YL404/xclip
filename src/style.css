@@ -46,12 +46,12 @@ mark{background:#e7cf7a66;color:inherit;border-radius:2px;padding:0 1px}
 .nav-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;letter-spacing:.07em;color:var(--muted);padding:0 10px;margin-bottom:5px}
 .tags-toggle{font-size:10px;color:var(--muted);padding:2px 4px;border-radius:4px;letter-spacing:0}
 .tags-toggle:hover{color:var(--accent);background:var(--hover)}
-.tag-section{margin-top:20px;display:flex;flex-direction:column;min-height:0}
-#tag-nav{display:flex;flex-direction:column;gap:1px;padding-bottom:4px}
+.tag-section{margin-top:20px;display:flex;flex-direction:column;flex:1;min-height:0}
+#tag-nav{display:flex;flex-direction:column;gap:1px;padding-bottom:4px;overflow-y:auto;min-height:0;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
 .tag-item{min-height:27px;padding:3px 9px;font-size:12px}
 .tag-dot{width:5px;height:5px;border-radius:50%;background:var(--muted);margin:0 5px;opacity:.55;flex-shrink:0}
 .nav-item.active .tag-dot{background:var(--accent);opacity:1}
-.sidebar-footer{margin-top:auto;padding:13px 8px 2px;border-top:1px solid var(--line)}
+.sidebar-footer{margin-top:auto;padding:13px 8px 2px;border-top:1px solid var(--line);flex-shrink:0}
 .local-state{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--secondary);padding:2px 0 9px}
 .local-dot{width:6px;height:6px;background:#7a9b6f;border-radius:50%;box-shadow:0 0 0 3px #7a9b6f18;flex-shrink:0}
 .footer-tools{display:flex;align-items:center;gap:1px;margin-left:-5px}
