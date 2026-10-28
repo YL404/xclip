@@ -420,6 +420,7 @@ function handleReaderClick(event: MouseEvent): void {
   const reveal = target.closest<HTMLElement>("[data-reveal]"); if (reveal) void Library.reveal(reveal.dataset.reveal!).catch((error: unknown) => notify(String(error)));
 }
 readerBody.addEventListener("click", handleReaderClick); $("#reader-tabs").addEventListener("click", handleReaderClick);
+reader.addEventListener("click", (event) => { if (event.target === reader) closeReader(); });
 readerBody.addEventListener("change", (event) => { if ((event.target as Element).id === "compare-file") openAsset((event.target as HTMLSelectElement).value); });
 $("#reader-prev").addEventListener("click", () => navigateEntry(-1)); $("#reader-next").addEventListener("click", () => navigateEntry(1)); $("#reader-close").addEventListener("click", closeReader); $("#reader-edit").addEventListener("click", editEntry);
 $("#reader-expand").addEventListener("click", () => reader.classList.toggle("expanded"));

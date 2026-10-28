@@ -139,3 +139,13 @@ test("tags are ordered by count descending", async () => {
     assert.deepEqual([...app.window.document.querySelectorAll("#tag-nav .nav-item")].map((node) => node.textContent), ["多9", "中4", "少1"]);
   } finally { await app.window.happyDOM.abort(); app.window.close(); }
 });
+
+test("clicking outside the reader closes it", async () => {
+  const app = await start();
+  try {
+    app.$(".card").click();
+    await until(() => app.$("#reader").open);
+    app.$("#reader").dispatchEvent(new app.window.MouseEvent("click", { bubbles: true }));
+    await until(() => !app.$("#reader").open);
+  } finally { await app.window.happyDOM.abort(); app.window.close(); }
+});
