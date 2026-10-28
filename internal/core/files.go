@@ -51,6 +51,10 @@ func collectFiles(inputs []string) ([]sourceFile, string, string, error) {
 			if err != nil {
 				return err
 			}
+			// macOS 会在目录里留下 .DS_Store 和 AppleDouble 文件，不属于内容。
+			if name := entry.Name(); name == ".DS_Store" || strings.HasPrefix(name, "._") {
+				return nil
+			}
 			if entry.Type()&os.ModeSymlink != 0 {
 				if entry.IsDir() {
 					return filepath.SkipDir
@@ -144,7 +148,7 @@ func kindFor(name, mimeType string) string {
 var codeExtensions = map[string]bool{
 	".c": true, ".cc": true, ".cpp": true, ".css": true, ".go": true,
 	".h": true, ".html": true, ".java": true, ".js": true, ".jsx": true,
-	".kt": true, ".m": true, ".mm": true, ".php": true, ".py": true,
+	".kt": true, ".m": true, ".metal": true, ".mm": true, ".php": true, ".py": true,
 	".rb": true, ".rs": true, ".sh": true, ".sql": true, ".swift": true,
 	".ts": true, ".tsx": true, ".vue": true, ".zig": true,
 }
