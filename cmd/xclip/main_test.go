@@ -91,3 +91,47 @@ func TestParseIntermixedPreservesValues(t *testing.T) {
 		t.Fatalf("参数值错误: %+v, args=%q", o, fs.Args())
 	}
 }
+
+func TestCLIPruneRemovesDeletedEntryBlobs(t *testing.T) {
+	root := t.TempDir()
+	library := filepath.Join(root, "library")
+	source := filepath.Join(root, "note.md")
+	if err := os.WriteFile(source, []byte("# 清理\n无引用附件"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if err := run(context.Background(), []string{"add", "--home", library, source, "--json"}, &output); err != nil {
+		t.Fatal(err)
+	}
+	var added struct {
+		Entry struct {
+			ID     string `json:"id"`
+			Assets []struct {
+				LocalPath string `json:"local_path"`
+			} `json:"assets"`
+		} `json:"entry"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &added); err != nil {
+		t.Fatal(err)
+	}
+	if err := run(context.Background(), []string{"delete", "--home", library, added.Entry.ID[:8], "--json"}, &output); err != nil {
+		t.Fatal(err)
+	}
+	output.Reset()
+	if err := run(context.Background(), []string{"prune", "--home", library, "--json"}, &output); err != nil {
+		t.Fatal(err)
+	}
+	var pruned struct {
+		Pruned int   `json:"pruned"`
+		Bytes  int64 `json:"bytes"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &pruned); err != nil {
+		t.Fatalf("JSON 输出无效: %v\n%s", err, output.String())
+	}
+	if pruned.Pruned != 1 || pruned.Bytes <= 0 {
+		t.Fatalf("清理结果错误: %+v", pruned)
+	}
+	if _, err := os.Stat(added.Entry.Assets[0].LocalPath); !os.IsNotExist(err) {
+		t.Fatalf("附件文件仍在: %v", err)
+	}
+}

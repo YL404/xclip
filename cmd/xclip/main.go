@@ -25,6 +25,7 @@ const usage = `xclip — 人和 agent 共用的本地内容库
               [--clear-summary] [--clear-note] [--clear-tags] [--describe 路径=说明]
   xclip tags [--json]
   xclip delete <条目> [--json]
+  xclip prune [--json]
   xclip migrate --from <旧xclip.db> [--media <旧media目录>] [--to <新内容库>] [--json]
 
 链接、文件、目录、文本都可以成为一条内容；目录默认整体作为一条。
@@ -137,7 +138,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	case "update", "edit":
 		patchFlags(fs, &o)
 	case "tags":
-	case "delete", "rm":
+	case "delete", "rm", "prune":
 	default:
 		return fmt.Errorf("未知命令 %s\n%s", args[0], usage)
 	}
@@ -296,6 +297,19 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 			return printJSON(stdout, map[string]any{"schema_version": 2, "deleted": entry.ID, "short_id": entry.ShortID()})
 		}
 		fmt.Fprintf(stdout, "已删除: %s\n", entry.ShortID())
+		return nil
+	case "prune":
+		if fs.NArg() != 0 {
+			return errors.New("prune 不接受位置参数")
+		}
+		removed, freed, err := store.Prune(ctx)
+		if err != nil {
+			return err
+		}
+		if o.json {
+			return printJSON(stdout, map[string]any{"schema_version": 2, "pruned": removed, "bytes": freed})
+		}
+		fmt.Fprintf(stdout, "已清理 %d 个无引用附件，释放 %d 字节\n", removed, freed)
 		return nil
 	}
 	return nil

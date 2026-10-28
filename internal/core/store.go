@@ -674,6 +674,36 @@ func (s *Store) Delete(ctx context.Context, target string) error {
 	return err
 }
 
+// Prune 删除没有附件引用的 blob，返回清理数量和释放的字节数。
+func (s *Store) Prune(ctx context.Context) (int, int64, error) {
+	rows, err := s.db.Query(ctx, `SELECT b.sha256, b.size FROM blobs b
+		WHERE NOT EXISTS (SELECT 1 FROM assets a WHERE a.sha256 = b.sha256)`)
+	if err != nil {
+		return 0, 0, err
+	}
+	var removed int
+	var freed int64
+	for _, values := range rows.Values {
+		digest := text(values[0])
+		size, _ := values[1].(int64)
+		// 条件删除防止并发录入刚建立引用；只有确实删掉记录才删文件。
+		result, err := s.db.Execute(ctx, `DELETE FROM blobs WHERE sha256 = ?
+			AND NOT EXISTS (SELECT 1 FROM assets WHERE assets.sha256 = blobs.sha256)`, digest)
+		if err != nil {
+			return removed, freed, err
+		}
+		if result.Changes == 0 {
+			continue
+		}
+		if err := os.Remove(blobPath(s.root, digest)); err != nil && !os.IsNotExist(err) {
+			return removed, freed, fmt.Errorf("删除附件 %s: %w", digest, err)
+		}
+		removed++
+		freed += size
+	}
+	return removed, freed, nil
+}
+
 func text(value any) string {
 	switch value := value.(type) {
 	case string:

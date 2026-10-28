@@ -67,6 +67,7 @@ xclip update <entry> [--title <title>] [-s <summary>] [-n <note>] [-t <tag>]
                      [--describe <asset-path>=<description>] [--json]
 xclip tags [--json]
 xclip delete <entry> [--json]
+xclip prune [--json]
 xclip migrate --from <old xclip.db> [--media <old media dir>] [--to <new library>] [--json]
 ```
 
@@ -78,6 +79,8 @@ xclip migrate --from <old xclip.db> [--media <old media dir>] [--to <new library
   linked images.
 - **Tags**: pass an existing slug, or create inline with `slug:中文名称`. On `update`, `-t`
   replaces the tag set; omitting it leaves tags unchanged.
+- **Deletion**: `delete` removes the entry; blobs it alone referenced stay on disk until
+  `prune` collects them and reports the freed bytes.
 - **JSON**: `schema_version` is `2`. Summaries, text, and local paths are never truncated; every
   asset carries `local_path`, `sha256`, `kind`, `size`, and `readable`.
 - **Search results**: one row per matching asset, with path, line, snippet, and hit count. Read it

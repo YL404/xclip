@@ -272,3 +272,40 @@ func TestDuplicateContentSharesBlobButNotAsset(t *testing.T) {
 		t.Fatal("内容去重不应合并附件身份")
 	}
 }
+
+func TestPruneRemovesOnlyUnreferencedBlobs(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	kept, err := store.Import(ctx, Import{Title: "保留", TextName: "kept.swift", Text: "// kept"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dropped, err := store.Import(ctx, Import{Title: "删除", TextName: "dropped.swift", Text: "// dropped"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	orphan := dropped.Assets[0].LocalPath
+	if err := store.Delete(ctx, dropped.ID); err != nil {
+		t.Fatal(err)
+	}
+	removed, freed, err := store.Prune(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed != 1 || freed <= 0 {
+		t.Fatalf("清理 %d 个、%d 字节，预期 1 个且释放字节", removed, freed)
+	}
+	if _, err := os.Stat(orphan); !os.IsNotExist(err) {
+		t.Fatalf("无引用附件未删除: %v", err)
+	}
+	if _, err := os.Stat(kept.Assets[0].LocalPath); err != nil {
+		t.Fatalf("在用附件被删除: %v", err)
+	}
+	if again, _, err := store.Prune(ctx); err != nil || again != 0 {
+		t.Fatalf("重复清理: %d 个, 错误 %v", again, err)
+	}
+}
