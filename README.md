@@ -46,9 +46,9 @@ internal/core/         Data layer: entry/asset model, ingestion, search, migrati
 internal/service/      MyGo bindings and the scoped media handler
 cmd/xclip/             CLI
 src/                   TypeScript frontend
-Tests/frontend/        Frontend tests
-docs/v2-design.md      Product and architecture design
-designs/               Offline design prototypes
+test/                  Frontend tests
+docs/                  Product design and v1 notes
+legacy/swift/          v1 Swift app and CLI (frozen)
 ```
 
 The library defaults to `~/.xclip/`. Put `--home <dir>` before the command, or set `XCLIP_HOME`,

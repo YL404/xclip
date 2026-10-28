@@ -9,7 +9,7 @@ globalThis.DOMParser = window.DOMParser;
 globalThis.Node = window.Node;
 globalThis.Element = window.Element;
 globalThis.HTMLElement = window.HTMLElement;
-const { renderMarkdown, formatBytes, excerpt, resolveAsset, primaryAsset, highlight } = await import("../../src/view.ts");
+const { renderMarkdown, formatBytes, excerpt, resolveAsset, primaryAsset, highlight } = await import("../src/view.ts");
 Object.defineProperty(globalThis, "navigator", { value: window.navigator, configurable: true });
 
 test("Markdown removes active content", () => {

@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { stripTypeScriptTypes } from "node:module";
 import { Window } from "happy-dom";
-import { layout, icon } from "../../src/layout.ts";
-import * as view from "../../src/view.ts";
+import { layout, icon } from "../src/layout.ts";
+import * as view from "../src/view.ts";
 
-const source = readFileSync(new URL("../../src/main.ts", import.meta.url), "utf8").replace(/^import .+;\r?\n/gm, "");
+const source = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8").replace(/^import .+;\r?\n/gm, "");
 const compiled = stripTypeScriptTypes(source);
 const id = "A1B2C3D4-1234-4567-8901-123456789012";
 const entry = { id, title: "输入框焦点", summary: "Track focus in SwiftUI.", note: "", source: "", created_at: "2026-10-27T00:00:00Z", updated_at: "2026-10-27T00:00:00Z", tags: ["swiftui", "interaction"], assets: [

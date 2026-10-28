@@ -2,11 +2,11 @@ import AppKit
 import CoreGraphics
 import Foundation
 
-/// 把 designs/xclip-logo/app-icon.svg 的图形渲染成 macOS 图标所需的各尺寸 PNG。
+/// 把 legacy/swift/designs/xclip-logo/app-icon.svg 的图形渲染成 macOS 图标所需的各尺寸 PNG。
 /// 图形是纯几何（两张斜切圆角卡片错位堆叠 + 圆角容器），用 CoreGraphics 直接画，
 /// 不依赖任何外部转换工具。母版 SVG 的坐标写死在下面的路径里，改图形请两边同步。
 ///
-/// 用法：swift tools/render-icon.swift [输出目录]
+/// 用法：swift legacy/swift/tools/render-icon.swift [输出目录]
 /// 输出：<输出目录>/AppIcon.iconset/icon_*.png（iconutil 直接可用）
 
 let canvas: CGFloat = 1024

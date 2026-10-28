@@ -42,10 +42,11 @@ provenance only. Do not make display or search depend on the original file.
 - **Web content**: sanitize Markdown before insertion; never execute archived HTML/SVG in the
   trusted app origin. Media is served only by asset ID, never by an arbitrary path.
 - **Tests**: data-layer behavior in `internal/core`, CLI flow in `cmd/xclip`, frontend helpers in
-  `Tests/frontend`. Add cases next to the behavior you change.
+  `test`. Add cases next to the behavior you change.
 
 ## Legacy Swift implementation
 
-The Swift `Sources/`, `Tests/XClip*`, and `Package.swift` are the v1 implementation. They remain
-until the Go/MyGo app has covered v1 behavior and migration has been accepted; do not add features
-there. Remove them only in a dedicated cleanup change, not as a drive-by edit.
+`legacy/swift/` holds the v1 Swift implementation (`Package.swift`, `Sources/`, `Tests/`, `tools/`,
+`designs/`); build and test it from that directory. It remains until the Go/MyGo app has covered v1
+behavior and migration has been accepted; do not add features there. Remove it only in a dedicated
+cleanup change, not as a drive-by edit.
