@@ -475,7 +475,7 @@ func (s *Store) entries(ctx context.Context, where string, args []any, includeAs
 
 func (s *Store) Search(ctx context.Context, options SearchOptions) ([]SearchResult, error) {
 	limit := options.Limit
-	if limit <= 0 || limit > 200 {
+	if limit <= 0 {
 		limit = 50
 	}
 	where, args := "WHERE 1 = 1", []any{}

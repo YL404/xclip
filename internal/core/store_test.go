@@ -28,6 +28,7 @@ func TestAppSearchIncludesEntriesBeyondCLIDefaultLimit(t *testing.T) {
 		{SearchOptions{AllResults: true}, 55},
 		{SearchOptions{Query: "焦点 FocusState", AllResults: true}, 55},
 		{SearchOptions{Query: ".focused($input)", Limit: 2}, 2},
+		{SearchOptions{Limit: 500}, 55},
 	} {
 		results, err := store.Search(ctx, test.options)
 		if err != nil || len(results) != test.count {
