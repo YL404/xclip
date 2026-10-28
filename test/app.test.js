@@ -95,3 +95,36 @@ test("an archived unsupported file keeps its reveal action and file-list navigat
     assert.match(app.$("#reader-body").textContent, /参考\.pdf/);
   } finally { await app.window.happyDOM.abort(); app.window.close(); }
 });
+
+test("list view groups dates and shows the date outside today", async () => {
+  const at = (days) => { const date = new Date(); date.setHours(12, 0, 0, 0); date.setDate(date.getDate() - days); return date.toISOString(); };
+  const entries = [
+    { ...entry, id: "today", title: "今天条目", created_at: at(0), matches: [] },
+    { ...entry, id: "yesterday", title: "昨天条目", created_at: at(1), matches: [] },
+    { ...entry, id: "older", title: "几天前条目", created_at: at(3), matches: [] },
+  ];
+  const app = await start({ search: async () => entries });
+  try {
+    app.$("#list-view").click();
+    await until(() => app.$(".date-group"));
+    assert.deepEqual([...app.window.document.querySelectorAll(".date-group span")].map((node) => node.textContent), ["今天", "昨天", "近 7 天"]);
+    assert.match(app.$('[data-id="older"] .meta-date').textContent, /\d+月\d+日/);
+  } finally { await app.window.happyDOM.abort(); app.window.close(); }
+});
+
+test("multi-image covers fill the collage by count", async () => {
+  const images = [0, 1, 2].map((index) => ({ ...entry.assets[0], id: `image-${index}`, path: `image-${index}.png`, kind: "image", mime: "image/png", readable: false, sha256: `image-${index}`, size: 100 }));
+  const app = await start({ search: async () => [{ ...entry, assets: images, matches: [] }] });
+  try {
+    assert.equal(app.$(".gallery-cover").classList.contains("three"), true);
+    assert.equal(app.$(".gallery-cover").querySelectorAll("img").length, 3);
+  } finally { await app.window.happyDOM.abort(); app.window.close(); }
+});
+
+test("sidebar reports unique content bytes and the import trigger stays named", async () => {
+  const app = await start();
+  try {
+    assert.match(app.$("#library-state").textContent, /内容 30 B/);
+    assert.equal(app.$("#import-menu").getAttribute("aria-label"), "收录");
+  } finally { await app.window.happyDOM.abort(); app.window.close(); }
+});

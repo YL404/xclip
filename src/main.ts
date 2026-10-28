@@ -13,7 +13,7 @@ const reader = $<HTMLDialogElement>("#reader");
 const readerBody = $("#reader-body");
 const readSaved = <T>(key: string, fallback: T): T => { try { return JSON.parse(localStorage.getItem("xclip:" + key) ?? "null") ?? fallback; } catch { return fallback; } };
 const save = (key: string, value: unknown) => { try { localStorage.setItem("xclip:" + key, JSON.stringify(value)); } catch { /* 隐私模式下仍可正常阅读。 */ } };
-const state = { catalog: [] as SearchResult[], results: [] as SearchResult[], tags: [] as Tag[], query: "", selectedTags: [] as string[], kind: "", scope: "all", sort: "new", view: readSaved("view", "grid"), queryView: "list", history: readSaved<string[]>("history", []), limit: 60, request: 0 };
+const state = { catalog: [] as SearchResult[], results: [] as SearchResult[], tags: [] as Tag[], query: "", selectedTags: [] as string[], kind: "", scope: "all", sort: "new", view: readSaved("view", "grid"), queryView: "list", history: readSaved<string[]>("history", []), tagsExpanded: readSaved("tagsExpanded", false), contentBytes: 0, limit: 60, request: 0 };
 const reading = { entry: null as Entry | null, asset: null as Asset | null, tab: "overview", line: 0, compare: false, queue: [] as string[], autoplay: false };
 const textTasks = new Map<string, Promise<string>>();
 const texts = new Map<string, string>();
@@ -25,6 +25,55 @@ let readerRequest = 0, renderRequest = 0, refreshRequest = 0, previousScroll = 0
 function notify(message: string): void { clearTimeout(toastTimer); $("#toast").textContent = message; $("#toast").classList.add("visible"); toastTimer = setTimeout(() => $("#toast").classList.remove("visible"), 2500); }
 function tagName(slug: string): string { return state.tags.find((tag) => tag.slug === slug)?.name ?? slug; }
 function tagHTML(slug: string, inReader = false): string { return `<button class="mini-tag" data-${inReader ? "reader-tag" : "tag"}="${esc(slug)}">${esc(tagName(slug))}</button>`; }
+const DAY = 86400000;
+function startOfDay(date: Date): number { return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime(); }
+function dayDistance(value: string): number { const date = new Date(value); return Number.isNaN(date.getTime()) ? Infinity : Math.round((startOfDay(new Date()) - startOfDay(date)) / DAY); }
+function relativeDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const days = dayDistance(value);
+  if (days <= 0) return "今天";
+  if (days === 1) return "昨天";
+  if (days < 7) return `${days} 天前`;
+  if (date.getFullYear() === new Date().getFullYear()) return `${date.getMonth() + 1}月${date.getDate()}日`;
+  return `${date.getFullYear()}年${date.getMonth() + 1}月`;
+}
+function timeLabel(value: string): string { const date = new Date(value); return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }); }
+function shortDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.getFullYear() === new Date().getFullYear() ? `${date.getMonth() + 1}月${date.getDate()}日` : `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+}
+function dateGroup(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "更早";
+  const days = dayDistance(value);
+  if (days <= 0) return "今天";
+  if (days === 1) return "昨天";
+  if (days < 7) return "近 7 天";
+  if (date.getFullYear() === new Date().getFullYear() && date.getMonth() === new Date().getMonth()) return "本月";
+  if (date.getFullYear() === new Date().getFullYear()) return `${date.getMonth() + 1}月`;
+  return `${date.getFullYear()}年${date.getMonth() + 1}月`;
+}
+function pathParts(path: string): { name: string; dir: string } {
+  const index = path.lastIndexOf("/");
+  return index < 0 ? { name: path, dir: "" } : { name: path.slice(index + 1), dir: path.slice(0, index) };
+}
+function fileNavItem(asset: Asset, active: boolean, kind = "code"): string {
+  const { name, dir } = pathParts(asset.path);
+  return `<button class="file-item ${active ? "active" : ""}" data-asset="${esc(asset.id)}" title="${esc(asset.path)}">${icon(kind)}<span class="file-item-text"><b>${esc(name)}</b>${dir ? `<small>${esc(dir)}</small>` : ""}</span></button>`;
+}
+function sourceLabel(source: string): string {
+  if (!source) return "本地收录";
+  try { const host = new URL(source).hostname.replace(/^www\./, ""); return /(^|\.)x\.com$|(^|\.)twitter\.com$/.test(host) ? "来自 X" : host; }
+  catch { return "本地收录"; }
+}
+function contentSize(entries: SearchResult[]): number {
+  const seen = new Set<string>(); let bytes = 0;
+  for (const entry of entries) for (const asset of entry.assets) if (!seen.has(asset.sha256)) { seen.add(asset.sha256); bytes += asset.size; }
+  return bytes;
+}
+function storageLabel(): string { return `仅存本地 · 内容 ${formatBytes(state.contentBytes)}`; }
 async function text(entry: Entry, asset: Asset): Promise<string> {
   let task = textTasks.get(asset.id);
   if (!task) {
@@ -57,21 +106,31 @@ function renderNav(): void {
   $("#all-nav").classList.toggle("active", state.scope === "all" && !state.selectedTags.length);
   $("#recent-nav").classList.toggle("active", state.scope === "recent");
   $("#pending-nav").classList.toggle("active", state.scope === "pending");
-  $("#tag-nav").innerHTML = state.tags.map((tag) => `<button class="nav-item ${state.selectedTags.includes(tag.slug) ? "active" : ""}" data-tag="${esc(tag.slug)}" aria-pressed="${state.selectedTags.includes(tag.slug)}"><span class="tag-dot"></span><span>${esc(tag.name)}</span><span class="count">${tag.count}</span></button>`).join("");
+  const visible = state.tagsExpanded ? state.tags : state.tags.slice(0, 10);
+  const extra = state.tags.filter((tag) => state.selectedTags.includes(tag.slug) && !visible.includes(tag));
+  $("#tag-nav").innerHTML = [...visible, ...extra].map((tag) => `<button class="nav-item tag-item ${state.selectedTags.includes(tag.slug) ? "active" : ""}" data-tag="${esc(tag.slug)}" aria-pressed="${state.selectedTags.includes(tag.slug)}"><span class="tag-dot"></span><span>${esc(tag.name)}</span><span class="count">${tag.count}</span></button>`).join("");
+  const toggle = $("#tags-toggle");
+  toggle.hidden = state.tags.length <= 10;
+  toggle.textContent = state.tagsExpanded ? "收起" : `全部 ${state.tags.length}`;
+  toggle.setAttribute("aria-expanded", String(state.tagsExpanded));
+  $("#library-state").textContent = storageLabel();
 }
 function cardCover(entry: Entry): string {
   const asset = primaryAsset(entry.assets);
   if (!asset) return `<div class="card-cover"><div class="card-file">${icon("doc")}<span>尚无附件</span></div></div>`;
   if (asset.kind === "video") {
     const preview = readyPreviews.get(asset.id);
-    return `<div class="card-cover video-cover">${preview?.poster ? `<img src="${esc(preview.poster)}" alt="${esc(entry.title)}的演示画面" loading="lazy">` : `<div class="card-loading">${icon("video")}<span>正在读取视频封面…</span></div>`}<span class="kind-badge">${icon("video")}视频${entry.assets.some((item) => item.kind === "code") ? " · 代码" : ""}</span><button class="play-button" data-play-id="${esc(entry.id)}" aria-label="播放${esc(entry.title)}" title="播放视频">${icon("play")}</button><span class="duration" ${preview?.duration ? "" : "hidden"}>${formatDuration(preview?.duration ?? 0)}</span></div>`;
+    const poster = preview?.poster ?? "";
+    return `<div class="card-cover video-cover"${poster ? ` style="--cover:url('${esc(poster)}')"` : ""}>${poster ? `<img class="cover-fg" src="${esc(poster)}" alt="${esc(entry.title)}的演示画面" loading="lazy">` : `<div class="card-loading">${icon("video")}<span>正在读取视频封面…</span></div>`}<button class="play-button" data-play-id="${esc(entry.id)}" aria-label="播放${esc(entry.title)}" title="播放视频">${icon("play")}</button><span class="duration" ${preview?.duration ? "" : "hidden"}>${formatDuration(preview?.duration ?? 0)}</span></div>`;
   }
   if (asset.kind === "image") {
     const images = entry.assets.filter((item) => item.kind === "image");
-    return `<div class="card-cover gallery-cover ${images.length === 1 ? "single" : ""}">${images.slice(0, 3).map((item) => `<img src="${mediaURL(item)}" alt="${esc(item.path)}" loading="lazy">`).join("")}<span class="gallery-count">${images.length} 张图片</span></div>`;
+    if (images.length === 1) return `<div class="card-cover gallery-cover single" style="--cover:url('${esc(mediaURL(images[0]))}')"><img class="cover-fg" src="${mediaURL(images[0])}" alt="${esc(images[0].path)}" loading="lazy"></div>`;
+    const count = Math.min(images.length, 3);
+    return `<div class="card-cover gallery-cover ${count === 2 ? "two" : "three"}">${images.slice(0, count).map((item) => `<img src="${mediaURL(item)}" alt="${esc(item.path)}" loading="lazy">`).join("")}<span class="gallery-count">${images.length} 张</span></div>`;
   }
-  if (asset.kind === "code") return `<div class="card-cover card-code"><div class="code-caption">${esc(asset.path)}</div><pre>${highlightCode((texts.get(asset.id) ?? "").split("\n").slice(0, 12).join("\n"))}</pre></div>`;
-  if (asset.kind === "text") return `<div class="card-cover paper-cover"><div class="paper-label">${icon("doc")}文档</div><div class="paper-title">${esc(contentExcerpt(texts.get(asset.id) ?? "") || entry.title)}</div><div class="paper-line"></div><div class="paper-line short"></div><span class="paper-corner">${esc(asset.path.split("/").pop() ?? "")}</span></div>`;
+  if (asset.kind === "code") return `<div class="card-cover card-code"><span class="cover-glyph">${icon("code")}</span><div class="code-caption">${esc(asset.path)}</div><pre>${highlightCode((texts.get(asset.id) ?? "").split("\n").slice(0, 12).join("\n"))}</pre></div>`;
+  if (asset.kind === "text") return `<div class="card-cover paper-cover"><span class="cover-glyph">${icon("doc")}</span><div class="paper-label">${icon("doc")}文档</div><div class="paper-title">${esc(contentExcerpt(texts.get(asset.id) ?? "") || entry.title)}</div><div class="paper-line"></div><div class="paper-line short"></div><span class="paper-corner">${esc(asset.path.split("/").pop() ?? "")}</span></div>`;
   return `<div class="card-cover"><div class="card-file">${icon(asset.kind === "audio" ? "video" : "doc")}<span>${esc(asset.path.split("/").pop() ?? "")}</span><small>${kindLabel(asset.kind)} · ${formatBytes(asset.size)}</small></div></div>`;
 }
 const observer = new IntersectionObserver((items) => {
@@ -90,9 +149,12 @@ async function hydrateCard(card: HTMLElement, entry: Entry): Promise<void> {
       if (!doc) return;
       const source = await text(entry, doc);
       if (!card.isConnected) return;
-      $(".card-description", card).innerHTML = highlight(doc.kind === "code" ? entry.note || entry.summary || doc.path : contentExcerpt(source), state.query);
-      if (asset?.kind === "code") $(".card-cover pre", card).innerHTML = highlightCode(source.split("\n").slice(0, 12).join("\n"));
-      if (asset?.kind === "text") $(".paper-title", card).textContent = contentExcerpt(source) || entry.title;
+      const description = $(".card-description", card);
+      if (description) description.innerHTML = highlight(doc.kind === "code" ? entry.note || entry.summary || doc.path : contentExcerpt(source), state.query);
+      const preview = $(".card-cover pre", card);
+      if (asset?.kind === "code" && preview) preview.innerHTML = highlightCode(source.split("\n").slice(0, 12).join("\n"));
+      const paperTitle = $(".paper-title", card);
+      if (asset?.kind === "text" && paperTitle) paperTitle.textContent = contentExcerpt(source) || entry.title;
     })(),
     (async () => {
       if (asset?.kind !== "video") return;
@@ -103,13 +165,31 @@ async function hydrateCard(card: HTMLElement, entry: Entry): Promise<void> {
       if (loader) {
         const element = document.createElement(preview.poster ? "img" : "video");
         element.setAttribute("src", preview.poster || mediaURL(asset));
-        if (element instanceof HTMLVideoElement) { element.muted = true; element.playsInline = true; element.preload = "metadata"; element.setAttribute("aria-label", "视频首帧"); }
-        else element.setAttribute("alt", entry.title + "的演示画面");
+        if (element instanceof HTMLImageElement) {
+          element.className = "cover-fg";
+          element.loading = "lazy";
+          cover.style.setProperty("--cover", `url('${preview.poster}')`);
+          element.setAttribute("alt", entry.title + "的演示画面");
+        } else if (element instanceof HTMLVideoElement) { element.muted = true; element.playsInline = true; element.preload = "metadata"; element.setAttribute("aria-label", "视频首帧"); }
         loader.replaceWith(element);
       }
       if (preview.duration) { $(".duration", cover).textContent = formatDuration(preview.duration); $(".duration", cover).hidden = false; }
     })(),
   ]);
+}
+function cardHTML(entry: SearchResult, group?: string): string {
+  const match = state.query ? firstMatch(entry) : undefined;
+  const doc = documentAsset(entry.assets);
+  const description = doc && texts.has(doc.id) ? contentExcerpt(texts.get(doc.id)!) : entry.note || entry.summary || `${entry.assets.length} 个文件，已收录到本地`;
+  const asset = primaryAsset(entry.assets);
+  const kind = asset ? kindLabel(asset.kind) : "无附件";
+  const mixed = asset && asset.kind !== "code" && entry.assets.some((item) => item.kind === "code") ? " · 代码" : "";
+  const count = entry.assets.length > 1 ? ` · ${entry.assets.length} 个文件` : "";
+  const metaIcon = asset?.kind === "image" ? "image" : asset?.kind === "video" || asset?.kind === "audio" ? "video" : asset?.kind === "code" ? "code" : "doc";
+  const snippet = match?.snippet.trim() ?? "";
+  const showMatch = Boolean(match && !(match.kind === "metadata" && (!snippet || snippet === entry.title)));
+  const date = group ? (group === "今天" || group === "昨天" ? timeLabel(entry.created_at) : shortDate(entry.created_at)) : relativeDate(entry.created_at);
+  return `<article class="card" data-id="${esc(entry.id)}" tabindex="0" aria-label="预览${esc(entry.title)}">${cardCover(entry)}<div class="card-body"><h2>${highlight(entry.title, state.query)}</h2>${showMatch ? `<div class="card-match"><b>${match!.path ? esc(match!.path) + (match!.line ? " · 第 " + match!.line + " 行" : "") : "内容信息命中"}</b><span>${highlight(match!.snippet, state.query)}</span></div>` : `<p class="card-description">${highlight(description, state.query)}</p>`}<div class="card-bottom">${entry.tags.slice(0, 2).map((tag) => tagHTML(tag)).join("")}<button class="card-code-id" data-copy-entry="${esc(entry.id)}" title="复制内容编码" aria-label="复制内容编码 #${shortID(entry.id)}"><span>#${shortID(entry.id)}</span>${icon("copy")}</button></div></div><div class="card-meta"><span class="meta-kind">${icon(metaIcon)}<span>${esc(kind + mixed + count)}</span></span><span class="meta-date">${date}</span></div></article>`;
 }
 function renderResults(): void {
   renderNav(); observer.disconnect();
@@ -117,25 +197,33 @@ function renderResults(): void {
   const title = state.query ? "搜索结果" : state.scope === "recent" ? "最近查看" : state.scope === "pending" ? "待提炼" : state.selectedTags.length === 1 ? tagName(state.selectedTags[0]) : state.selectedTags.length ? "标签筛选" : "全部内容";
   $("#page-title").textContent = title; $("#breadcrumb").textContent = title;
   $("#heading-count").textContent = `${entries.length} 条`;
-  $("#page-caption").textContent = state.query ? `在原文、说明与代码中查找「${state.query}」` : state.scope === "pending" ? "已收录的原始内容，可以随时阅读和整理。" : "图文、视频、代码，和它们原本的上下文。";
+  const sub = state.query ? `在标题、正文与代码中搜索“${state.query}” · 点击结果直达命中文件` : state.scope === "pending" ? "已收录、但还没有英文摘要的内容" : state.scope === "recent" ? "按最近打开排序" : state.selectedTags.length ? `标签：${state.selectedTags.map(tagName).join(" + ")}` : "";
+  $("#page-sub").hidden = !sub; $("#page-sub").textContent = sub;
   $("#clear-search").hidden = !state.query;
-  $("#result-count").textContent = `${entries.length} 条${state.query ? "相关内容 · 点击结果直达命中文件" : "内容"}`;
   const base = state.catalog.filter((entry) => state.selectedTags.every((tag) => entry.tags.includes(tag)));
-  $("#type-filters").innerHTML = [["", "全部"], ["video", "含视频"], ["image", "含图片"], ["text", "含文档"], ["code", "含代码"], ["audio", "含音频"]].map(([kind, label]) => `<button class="filter-chip ${state.kind === kind ? "active" : ""}" data-kind="${kind}" aria-pressed="${state.kind === kind}">${label}<b>${kind ? base.filter((entry) => entry.assets.some((asset) => asset.kind === kind)).length : base.length}</b></button>`).join("");
+  $("#type-filters").innerHTML = [["", "全部"], ["video", "视频"], ["image", "图片"], ["text", "文档"], ["code", "代码"], ["audio", "音频"]].map(([kind, label]) => {
+    const count = kind ? base.filter((entry) => entry.assets.some((asset) => asset.kind === kind)).length : base.length;
+    const description = kind ? `包含${label}的内容` : "全部内容";
+    return `<button class="filter-chip ${state.kind === kind ? "active" : ""}" data-kind="${kind}" aria-pressed="${state.kind === kind}" title="${description}" aria-label="${description}，${count} 条">${label}<b>${count}</b></button>`;
+  }).join("");
   $("#selected-filters").hidden = !state.selectedTags.length;
   $("#selected-filters").innerHTML = state.selectedTags.map((tag) => `<button class="selected-tag" data-tag="${esc(tag)}" aria-label="移除${esc(tagName(tag))}筛选">${esc(tagName(tag))}${icon("close")}</button>`).join("") + (state.selectedTags.length ? '<button class="clear-filters" data-clear-tags>清除标签</button>' : "");
   const view = state.query ? state.queryView : state.view;
   for (const value of ["grid", "list"]) { $(`#${value}-view`).classList.toggle("active", view === value); $(`#${value}-view`).setAttribute("aria-pressed", String(view === value)); }
   $("#results").className = `cards ${view === "list" ? "list-view" : ""}`;
   if (!entries.length) {
-    $("#results").className = "";
+    $("#results").className = "cards";
     $("#results").innerHTML = `<div class="empty">${icon("search")}<h2>${!state.catalog.length ? "收录第一份值得保留的内容" : "没有找到匹配的内容"}</h2><p>${!state.catalog.length ? "选择文件或文件夹，也可以把文件直接拖入窗口。" : "试试其他关键词，或减少筛选条件。"}</p><button class="soft-button" data-reset>查看全部内容</button></div>`;
-  } else $("#results").innerHTML = entries.slice(0, state.limit).map((entry) => {
-    const match = state.query ? firstMatch(entry) : undefined;
-    const doc = documentAsset(entry.assets);
-    const description = doc && texts.has(doc.id) ? contentExcerpt(texts.get(doc.id)!) : entry.note || entry.summary || `${entry.assets.length} 个文件，已收录到本地`;
-    return `<article class="card" data-id="${esc(entry.id)}" tabindex="0" aria-label="预览${esc(entry.title)}">${cardCover(entry)}<div class="card-body"><h2>${highlight(entry.title, state.query)}</h2><p class="card-description">${highlight(description, state.query)}</p>${match ? `<div class="card-match"><b>${match.path ? esc(match.path) + (match.line ? " · 第 " + match.line + " 行" : "") : "内容信息命中"}</b><span>${highlight(match.snippet, state.query)}</span></div>` : ""}<div class="card-bottom">${entry.tags.slice(0, 2).map((tag) => tagHTML(tag)).join("")}<button class="card-code-id" data-copy-entry="${esc(entry.id)}" title="复制内容编码" aria-label="复制内容编码 #${shortID(entry.id)}"><span>#${shortID(entry.id)}</span>${icon("copy")}</button></div></div></article>`;
-  }).join("");
+  } else {
+    const shown = entries.slice(0, state.limit);
+    let html = "";
+    if (view === "list" && !state.query && (state.sort === "new" || state.sort === "old")) {
+      const groups = new Map<string, SearchResult[]>();
+      for (const entry of shown) { const key = dateGroup(entry.created_at); const group = groups.get(key); if (group) group.push(entry); else groups.set(key, [entry]); }
+      for (const [label, items] of groups) html += `<div class="date-group"><span>${label}</span><b>${items.length}</b></div>` + items.map((entry) => cardHTML(entry, label)).join("");
+    } else html = shown.map((entry) => cardHTML(entry)).join("");
+    $("#results").innerHTML = html;
+  }
   $$(".card").forEach((card) => observer.observe(card));
   $("#load-more").hidden = entries.length <= state.limit;
 }
@@ -151,7 +239,7 @@ async function refresh(): Promise<void> {
   const request = ++refreshRequest;
   const [tags, catalog] = await Promise.all([Library.tags(), Library.search("", [], "")]);
   if (request !== refreshRequest) return;
-  state.tags = tags; state.catalog = catalog;
+  state.tags = tags; state.catalog = catalog; state.contentBytes = contentSize(catalog);
   await loadResults();
 }
 function setSort(value: string): void { state.sort = value; const select = $<HTMLSelectElement>("#sort"); if (value === "viewed" && !select.querySelector('[value="viewed"]')) select.insertAdjacentHTML("afterbegin", '<option value="viewed">最近查看</option>'); select.value = value; if (value !== "viewed") select.querySelector('[value="viewed"]')?.remove(); }
@@ -160,7 +248,7 @@ function setTag(tag: string): void { state.selectedTags = state.selectedTags.inc
 function pauseMedia(): void { $$<HTMLMediaElement>("video, audio", readerBody).forEach((video) => { const key = video.dataset.media; if (key && video.currentTime > 0 && !video.ended) progress[key] = video.currentTime; if (video.ended && key) delete progress[key]; video.pause(); }); save("progress", progress); }
 async function openEntry(id: string, play = false): Promise<void> {
   const request = ++readerRequest; renderRequest++; pauseMedia();
-  if (!reader.open) { reading.queue = visibleEntries().map((entry) => entry.id); previousScroll = $("#content-scroll").scrollTop; reader.showModal(); }
+  if (!reader.open) { reading.queue = visibleEntries().map((entry) => entry.id); previousScroll = $("#content-scroll").scrollTop; reader.showModal(); reader.focus({ preventScroll: true }); }
   $("#reader-tabs").innerHTML = ""; readerBody.innerHTML = '<div class="reader-loading">正在读取内容…</div>';
   try {
     const entry = await Library.get(id);
@@ -181,13 +269,13 @@ function mediaHTML(asset: Asset, entry: Entry): string {
   return `<div class="media-stage"><${asset.kind === "audio" ? "audio" : "video"} src="${mediaURL(asset)}" ${preview?.poster ? `poster="${esc(preview.poster)}"` : ""} data-media="${esc(asset.id)}" controls playsinline preload="metadata" aria-label="${esc(asset.path)}"></${asset.kind === "audio" ? "audio" : "video"}></div><div class="media-caption">${icon("video")}<span>${esc(asset.path)}</span><span>${preview?.duration ? formatDuration(preview.duration) + " · " : ""}${formatBytes(asset.size)}</span></div>`;
 }
 function entryMeta(entry: Entry): string { return `<details class="entry-info"><summary>来源与收录信息${icon("right")}</summary><dl><dt>来源</dt><dd>${esc(entry.source || "本地收录")}</dd><dt>收录</dt><dd>${new Date(entry.created_at).toLocaleString("zh-CN")}</dd><dt>内容编码</dt><dd><button data-copy-entry="${esc(entry.id)}">#${shortID(entry.id)} ${icon("copy")}</button></dd><dt>英文摘要</dt><dd class="english-summary summary-text">${esc(entry.summary || "尚无摘要")}</dd>${entry.note ? `<dt>个人备注</dt><dd class="summary-text">${esc(entry.note)}</dd>` : ""}</dl></details>`; }
-function assetActions(asset: Asset): string { return `<button class="soft-button" data-copy-path="${esc(asset.id)}">${icon("copy")}复制路径</button><button class="soft-button reveal-button" data-reveal="${esc(asset.id)}">${icon("right")}在文件夹中显示</button>`; }
+function assetActions(asset: Asset): string { return `<button class="soft-button" data-copy-path="${esc(asset.id)}">${icon("copy")}复制路径</button><button class="soft-button reveal-button" data-reveal="${esc(asset.id)}">${icon("folder")}在文件夹中显示</button>`; }
 function documentHTML(entry: Entry, asset: Asset, source: string): string {
   return `<div class="doc-wrap"><div class="entry-kicker"><button data-copy-entry="${esc(entry.id)}">#${shortID(entry.id)}</button><span>·</span><span>${esc(asset.path)}</span></div><h1 class="doc-title">${esc(entry.title)}</h1><div class="doc-meta"><span>${esc(entry.tags.map(tagName).join(" · "))}${reading.line ? ` · 命中原文第 ${reading.line} 行` : ""}</span><button class="soft-button" data-copy-text>${icon("copy")}复制全文</button></div>${/\.md$/i.test(asset.path) ? `<article class="markdown">${renderMarkdown(source.replace(/^# [^\n]*\n/, ""), entry.assets, asset.path)}</article>` : `<pre class="text-source">${highlight(source, state.query)}</pre>`}<div class="reader-meta-actions">${assetActions(asset)}</div>${entryMeta(entry)}</div>`;
 }
 function codePane(entry: Entry, asset: Asset, source: string, compare = false): string {
   const tokens = state.query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
-  return `<div class="code-pane"><div class="code-toolbar">${compare ? `<select id="compare-file" aria-label="切换对照的代码文件">${entry.assets.filter((item) => item.kind === "code").map((item) => `<option value="${esc(item.id)}" ${item.id === asset.id ? "selected" : ""}>${esc(item.path)}</option>`).join("")}</select>` : `<span class="file-path">${esc(asset.path)}</span>`}<button class="soft-button" data-copy-text>${icon("copy")}复制代码</button><button class="soft-button reveal-button" data-reveal="${esc(asset.id)}" aria-label="在文件夹中显示">${icon("right")}</button></div><div class="code-scroll" tabindex="0" aria-label="代码内容，可横向和纵向滚动"><pre class="code-lines">${source.split("\n").map((line, index) => `<span class="code-line ${index + 1 === reading.line || tokens.some((token) => line.toLocaleLowerCase().includes(token)) ? "hit" : ""}" data-line="${index + 1}"><span class="line-number" aria-hidden="true">${index + 1}</span><code>${highlightCode(line, state.query)}</code></span>`).join("")}</pre></div></div>`;
+  return `<div class="code-pane"><div class="code-toolbar">${compare ? `<select id="compare-file" aria-label="切换对照的代码文件">${entry.assets.filter((item) => item.kind === "code").map((item) => `<option value="${esc(item.id)}" ${item.id === asset.id ? "selected" : ""}>${esc(item.path)}</option>`).join("")}</select>` : `<span class="file-path">${esc(asset.path)}</span>`}<button class="soft-button" data-copy-text>${icon("copy")}复制代码</button><button class="soft-button reveal-button" data-reveal="${esc(asset.id)}" aria-label="在文件夹中显示" title="在文件夹中显示">${icon("folder")}</button></div><div class="code-scroll" tabindex="0" aria-label="代码内容，可横向和纵向滚动"><pre class="code-lines">${source.split("\n").map((line, index) => `<span class="code-line ${index + 1 === reading.line || tokens.some((token) => line.toLocaleLowerCase().includes(token)) ? "hit" : ""}" data-line="${index + 1}"><span class="line-number" aria-hidden="true">${index + 1}</span><code>${highlightCode(line, state.query)}</code></span>`).join("")}</pre></div></div>`;
 }
 function filesHTML(entry: Entry): string { return `<div class="files-overview"><h2>全部文件</h2><p>${entry.assets.length} 个文件 · 属于同一条内容</p>${entry.assets.map((asset) => `<button class="asset-row" data-asset="${esc(asset.id)}">${icon(asset.kind === "code" ? "code" : asset.kind === "image" ? "image" : asset.kind === "video" ? "video" : "doc")}<div><b>${esc(asset.path)}</b><small>${kindLabel(asset.kind)} · ${formatBytes(asset.size)}</small></div>${icon("right")}</button>`).join("")}</div>`; }
 async function renderReader(): Promise<void> {
@@ -212,20 +300,20 @@ async function renderReader(): Promise<void> {
     } else if (reading.tab === "code" && codes.length) {
       const asset = reading.asset?.kind === "code" ? reading.asset : codes[0]; reading.asset = asset;
       const source = await text(entry, asset);
-      html = `<div class="code-layout"><nav class="file-nav" aria-label="代码文件"><div class="small-label">${codes.length} 个代码文件</div>${codes.map((item) => `<button class="file-item ${item.id === asset.id ? "active" : ""}" data-asset="${esc(item.id)}">${icon("code")}<span>${esc(item.path)}</span></button>`).join("")}</nav>${codePane(entry, asset, source)}</div>`;
+      html = `<div class="code-layout"><nav class="file-nav" aria-label="代码文件"><div class="small-label">${codes.length} 个代码文件</div>${codes.map((item) => fileNavItem(item, item.id === asset.id)).join("")}</nav>${codePane(entry, asset, source)}</div>`;
     } else if (reading.tab === "document" && docs.length) {
       const asset = reading.asset?.kind === "text" ? reading.asset : documentAsset(entry.assets) ?? docs[0]; reading.asset = asset;
       const source = await text(entry, asset);
-      html = (docs.length > 1 ? `<div class="file-nav">${docs.map((item) => `<button class="file-item ${item.id === asset.id ? "active" : ""}" data-asset="${esc(item.id)}">${esc(item.path)}</button>`).join("")}</div>` : "") + documentHTML(entry, asset, source);
+      html = (docs.length > 1 ? `<div class="file-nav">${docs.map((item) => fileNavItem(item, item.id === asset.id, "doc")).join("")}</div>` : "") + documentHTML(entry, asset, source);
     } else if (reading.tab === "overview") {
       const asset = reading.asset ?? primaryAsset(entry.assets);
       if (asset && ["image", "video", "audio"].includes(asset.kind)) {
         reading.asset = asset;
         const doc = documentAsset(entry.assets);
         const source = doc ? await text(entry, doc) : "";
-        const description = await text(entry, asset).catch(() => "");
-        const section = source.split(/\n## /)[1]?.split("\n").slice(1).join("\n").slice(0, 1200) ?? "";
-        html = `<div class="overview"><div class="overview-media">${mediaHTML(asset, entry)}${description ? `<p class="asset-description">${esc(description)}</p>` : ""}<div class="related-strip"><div class="small-label">一起收录的内容</div>${entry.assets.filter((item) => item.id !== asset.id).slice(0, 8).map((item) => `<button class="related-file" data-asset="${esc(item.id)}">${icon(item.kind === "code" ? "code" : item.kind === "image" ? "image" : "doc")}<span>${esc(item.path)}</span>${icon("right")}</button>`).join("")}<div class="reader-meta-actions">${assetActions(asset)}</div></div></div><div class="overview-copy"><div class="entry-kicker"><span>内容条目</span><button data-copy-entry="${esc(entry.id)}">#${shortID(entry.id)}</button></div><h1>${esc(entry.title)}</h1><div class="reader-tag-row">${entry.tags.map((tag) => tagHTML(tag, true)).join("")}</div><p class="reader-intro">${esc(contentExcerpt(source) || entry.note || entry.summary)}</p>${section ? `<h2 class="reader-section-title">内容说明</h2><div class="reader-notes">${renderMarkdown(section, entry.assets, doc!.path)}</div>` : ""}${doc ? `<button class="text-link" data-asset="${esc(doc.id)}">阅读全文与实现笔记${icon("right")}</button>` : ""}${entryMeta(entry)}</div></div>`;
+        const intro = entry.note || contentExcerpt(source) || entry.summary;
+        const related = entry.assets.filter((item) => item.id !== asset.id);
+        html = `<div class="overview"><div class="overview-media">${mediaHTML(asset, entry)}<div class="related-strip"><div class="small-label">同一条内容中的文件</div>${related.slice(0, 8).map((item) => `<button class="related-file" data-asset="${esc(item.id)}">${icon(item.kind === "code" ? "code" : item.kind === "image" ? "image" : item.kind === "video" ? "video" : "doc")}<span>${esc(item.path)}</span>${icon("right")}</button>`).join("")}${related.length > 8 ? `<div class="small-label">还有 ${related.length - 8} 个文件</div>` : ""}<div class="reader-meta-actions">${assetActions(asset)}</div></div></div><div class="overview-copy"><div class="entry-kicker"><span>内容条目</span><button data-copy-entry="${esc(entry.id)}">#${shortID(entry.id)}</button></div><h1>${esc(entry.title)}</h1><div class="reader-byline"><span>${relativeDate(entry.created_at)}</span><span class="sep">·</span><span>${entry.assets.length} 个文件</span>${entry.source ? `<span class="sep">·</span><span>${esc(sourceLabel(entry.source))}</span>` : ""}</div><div class="reader-tag-row">${entry.tags.map((tag) => tagHTML(tag, true)).join("")}</div>${intro ? `<p class="reader-intro">${esc(intro)}</p>` : ""}${doc ? `<button class="text-link" data-asset="${esc(doc.id)}">阅读全文与实现笔记${icon("right")}</button>` : ""}${entryMeta(entry)}</div></div>`;
       } else if (asset?.kind === "text" && asset.readable) { reading.asset = asset; html = documentHTML(entry, asset, await text(entry, asset)); }
       else if (asset) { html = `<div class="files-overview"><h2>${esc(asset.path)}</h2><p>原始文件已收录，此格式暂不支持预览。</p><div class="reader-meta-actions">${assetActions(asset)}</div></div>`; }
       else { html = filesHTML(entry); }
@@ -290,6 +378,32 @@ $("#load-more").addEventListener("click", () => { const scroll = $("#content-scr
 $("#refresh").addEventListener("click", () => { texts.clear(); textTasks.clear(); void refresh().catch((error: unknown) => notify(String(error))); });
 $("#import").addEventListener("click", () => { void importContent(() => Library.chooseAndImport()); });
 $("#import-files").addEventListener("click", () => { void importContent(() => Library.chooseFilesAndImport()); });
+const importMenu = $("#import-options");
+const importTrigger = $("#import-menu");
+const importItems = () => $$<HTMLButtonElement>("[role='menuitem']", importMenu);
+function setImportMenu(open: boolean, restoreFocus = false): void {
+  importMenu.hidden = !open;
+  importTrigger.setAttribute("aria-expanded", String(open));
+  if (open) importItems()[0]?.focus();
+  else if (restoreFocus) importTrigger.focus();
+}
+importTrigger.addEventListener("click", (event) => { event.stopPropagation(); setImportMenu(importMenu.hasAttribute("hidden")); });
+importMenu.addEventListener("click", (event) => { if ((event.target as Element).closest("[role='menuitem']")) setImportMenu(false, true); });
+importMenu.addEventListener("keydown", (event) => {
+  const items = importItems();
+  const index = items.indexOf(document.activeElement as HTMLButtonElement);
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault(); event.stopPropagation();
+    items[(index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+  } else if (event.key === "Home" || event.key === "End") {
+    event.preventDefault(); event.stopPropagation();
+    items[event.key === "Home" ? 0 : items.length - 1]?.focus();
+  } else if (event.key === "Escape") {
+    event.preventDefault(); event.stopPropagation(); setImportMenu(false, true);
+  }
+});
+document.addEventListener("click", (event) => { if (!(event.target as Element).closest(".import-wrap")) setImportMenu(false); });
+$("#tags-toggle").addEventListener("click", () => { state.tagsExpanded = !state.tagsExpanded; save("tagsExpanded", state.tagsExpanded); renderNav(); });
 onFileDrop(({ paths }) => { if (paths.length) void importContent(() => Library.import(paths)); });
 
 function handleReaderClick(event: MouseEvent): void {
@@ -312,7 +426,7 @@ reader.addEventListener("cancel", () => { readerRequest++; renderRequest++; paus
 reader.addEventListener("close", () => { readerRequest++; renderRequest++; pauseMedia(); if (state.scope === "recent") renderResults(); $("#content-scroll").scrollTop = previousScroll; $$(".card").find((card) => card.dataset.id === reading.entry?.id)?.focus({ preventScroll: true }); });
 $("#image-prev").addEventListener("click", () => showImage(-1)); $("#image-next").addEventListener("click", () => showImage(1)); $("#image-close").addEventListener("click", () => $<HTMLDialogElement>("#image-view").close()); $("#large-image").addEventListener("click", () => $<HTMLDialogElement>("#image-view").close());
 $("#image-view").addEventListener("close", () => { if (reader.open) void renderReader(); });
-for (const id of ["about", "help"]) $(`#${id}`).addEventListener("click", () => $<HTMLDialogElement>("#info-dialog").showModal()); $("#info-close").addEventListener("click", () => $<HTMLDialogElement>("#info-dialog").close());
+$("#about").addEventListener("click", () => $<HTMLDialogElement>("#info-dialog").showModal()); $("#info-close").addEventListener("click", () => $<HTMLDialogElement>("#info-dialog").close());
 for (const id of ["close-edit", "cancel-edit"]) $(`#${id}`).addEventListener("click", () => $<HTMLDialogElement>("#edit-dialog").close());
 $("#edit-form").addEventListener("submit", async (event) => {
   event.preventDefault(); const entry = reading.entry; if (!entry) return;
@@ -332,7 +446,7 @@ document.addEventListener("keydown", (event) => {
   if ($<HTMLDialogElement>("#image-view").open) { if (["ArrowLeft", "ArrowRight"].includes(event.key)) { event.preventDefault(); showImage(event.key === "ArrowLeft" ? -1 : 1); } return; }
   if (reader.open) { if (!editing && !target.closest(".code-scroll") && ["ArrowLeft", "ArrowRight"].includes(event.key)) { event.preventDefault(); navigateEntry(event.key === "ArrowLeft" ? -1 : 1); } return; }
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k" || event.key === "/" && !editing) { event.preventDefault(); $("#search").focus(); $<HTMLInputElement>("#search").select(); return; }
-  if (event.key === "Escape") { if (state.query) $("#clear-search").click(); $("#app .app").classList.remove("sidebar-open"); return; }
+  if (event.key === "Escape") { if (!importMenu.hidden) { setImportMenu(false); return; } if (state.query) $("#clear-search").click(); $("#app .app").classList.remove("sidebar-open"); return; }
   if (editing || target.closest("button")) return;
   const card = target.closest<HTMLElement>("[data-id]"); if (!card) return;
   if ([" ", "Enter"].includes(event.key)) { event.preventDefault(); card.click(); return; }
