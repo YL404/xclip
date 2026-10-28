@@ -1,0 +1,25 @@
+{
+  "name": "xclip",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "mygo dev",
+    "build": "mygo build",
+    "generate": "mygo generate",
+    "dev:web": "vite",
+    "build:web": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test Tests/frontend/*.test.js"
+  },
+  "dependencies": {
+    "dompurify": "^3.3.3",
+    "marked": "^17.0.4",
+    "mygo-runtime": "^0.7.1"
+  },
+  "devDependencies": {
+    "mygo-cli": "^0.7.1",
+    "happy-dom": "^20.8.3",
+    "typescript": "^7",
+    "vite": "^8"
+  }
+}

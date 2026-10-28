@@ -1,8 +1,10 @@
-# Known issues (platform pitfalls memo)
+# Known issues (v1 Swift app)
 
-Two SwiftUI rendering problems found while verifying the packaged app (screenshots + AppleScript),
-both rooted in platform limitations and worked around; recorded here so we don't step on them
-again: when touching the related code, do not reintroduce Button / .toolbar.
+Applies to the legacy Swift implementation in `Sources/`. The shipped v2 app is Go/MyGo; see
+`README.md`.
+
+SwiftUI platform pitfalls found while verifying the packaged app (screenshots + AppleScript), all
+worked around; when touching the related code, do not reintroduce Button / .toolbar.
 
 ## 1. Buttons don't render inside a custom Layout container
 

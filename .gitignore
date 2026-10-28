@@ -6,3 +6,9 @@ DerivedData/
 .DS_Store
 designs/*/_d_meta.json
 *.app/
+node_modules/
+dist/
+.mygo/
+
+# Local agent skills linked from outside the repo
+/.agents/skills/baoyu-design
