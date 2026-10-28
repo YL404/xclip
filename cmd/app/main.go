@@ -26,7 +26,9 @@ func main() {
 		win := mygo.NewWindow(mygo.WindowOptions{
 			Title: "XClip", Width: 1440, Height: 920,
 			MinWidth: 960, MinHeight: 640, URL: "/",
-			BackgroundColor: "light-dark(#f5f5f2, #171918)",
+			BackgroundColor:      "light-dark(#f5f5f2, #171918)",
+			TitleBarStyle:        mygo.TitleBarHidden,
+			TrafficLightPosition: &mygo.Point{X: 8, Y: 20},
 		})
 		win.Center()
 	})

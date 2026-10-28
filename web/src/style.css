@@ -32,8 +32,8 @@ mark{background:#e7cf7a66;color:inherit;border-radius:2px;padding:0 1px}
 
 /* 应用骨架 */
 .app{display:grid;grid-template-columns:196px minmax(0,1fr);height:100%;overflow:hidden}
-.sidebar{background:var(--sidebar);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:19px 12px 11px;overflow-y:auto;min-height:0;scrollbar-width:thin}
-.brand{display:flex;align-items:center;gap:9px;padding:0 8px;margin-bottom:23px}
+.sidebar{background:var(--sidebar);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:0 12px 11px;overflow-y:auto;min-height:0;scrollbar-width:thin}
+.brand{display:flex;align-items:center;gap:9px;height:54px;flex-shrink:0;padding:0 8px 0 calc(var(--mygo-titlebar-inset-left,0px) + 8px);margin-bottom:12px;--app-region:drag}
 .brand img{width:26px;height:26px;border-radius:7px}
 .brand-word{font-size:19px;font-weight:700;letter-spacing:-.7px}
 .primary-nav{display:flex;flex-direction:column;gap:1px}
@@ -60,12 +60,12 @@ mark{background:#e7cf7a66;color:inherit;border-radius:2px;padding:0 1px}
 .theme-button svg{width:15px;height:15px}
 
 .main{min-width:0;display:flex;flex-direction:column;overflow:hidden}
-.topbar{height:54px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 24px;border-bottom:1px solid var(--line);background:var(--bg);position:relative;z-index:20}
+.topbar{height:54px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 24px;border-bottom:1px solid var(--line);background:var(--bg);position:relative;z-index:20;--app-region:drag}
 .topbar-crumb{display:flex;align-items:center;gap:7px;min-width:0;font-size:11.5px;color:var(--muted)}
 .topbar-crumb strong{font-weight:500;color:var(--secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:360px}
 .topbar .divider{color:var(--line-strong)}
 .topbar-actions{margin-left:auto;display:flex;align-items:center;gap:9px;min-width:0}
-.search-box{display:flex;align-items:center;gap:8px;width:300px;height:34px;padding:0 9px;border:1px solid var(--line);border-radius:7px;background:var(--surface);transition:width .2s ease,border-color .15s,box-shadow .15s}
+.search-box{display:flex;align-items:center;gap:8px;width:300px;height:34px;padding:0 9px;border:1px solid var(--line);border-radius:7px;background:var(--surface);transition:width .2s ease,border-color .15s,box-shadow .15s;--app-region:no-drag}
 .search-box:focus-within{width:380px;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 9%,transparent)}
 .search-box>svg{color:var(--muted);width:15px;height:15px}
 .search-box input{border:0;outline:none;background:transparent;min-width:0;flex:1;font-size:12px;height:100%}
@@ -75,7 +75,7 @@ mark{background:#e7cf7a66;color:inherit;border-radius:2px;padding:0 1px}
 .search-box .icon-btn{width:22px;min-width:22px;height:22px}
 .search-box .icon-btn svg{width:12px;height:12px}
 .search-box kbd{font-size:9.5px;padding:1px 4px;border-color:var(--line);background:var(--bg)}
-.import-wrap{position:relative;flex-shrink:0}
+.import-wrap{position:relative;flex-shrink:0;--app-region:no-drag}
 .import-button{padding:0 9px 0 10px}
 .import-button .chevron{width:12px;height:12px;opacity:.7;margin-left:-1px}
 .import-menu{position:absolute;right:0;top:calc(100% + 6px);width:228px;padding:5px;background:var(--surface);border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow);z-index:40}
@@ -415,7 +415,7 @@ dialog::backdrop{background:var(--scrim);backdrop-filter:blur(6px)}
 }
 
 @media(max-width:720px){.app{grid-template-columns:1fr}
-.sidebar{position:fixed;left:0;top:0;bottom:0;width:218px;z-index:30;transform:translateX(-100%);transition:transform .2s;box-shadow:var(--shadow);padding:19px 12px 11px}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:218px;z-index:30;transform:translateX(-100%);transition:transform .2s;box-shadow:var(--shadow);padding:0 12px 11px}
 .app.sidebar-open .sidebar{transform:translateX(0)}
 .mobile-menu{display:inline-flex!important}
 .topbar{height:52px;padding:0 14px;gap:8px}
