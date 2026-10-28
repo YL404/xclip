@@ -42,6 +42,8 @@ async function capture(asset: Asset): Promise<MediaPreview> {
     }
     duration = Number.isFinite(video.duration) ? video.duration : duration;
     if (!video.videoWidth || !video.videoHeight) throw new Error("视频画面不可用");
+    // WebKit 在 seeked 后立刻 drawImage 偶尔会画到尚未合成的黑帧，等两帧再取画面。
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     const scale = Math.min(1, 640 / Math.max(video.videoWidth, video.videoHeight));
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
