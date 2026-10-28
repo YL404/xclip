@@ -41,12 +41,13 @@ to `/Applications` and the CLI to `~/.local/bin`.
 ## Layout
 
 ```
-main.go                MyGo app: window, bound Library service, media protocol
+cmd/app/               MyGo app: window, bound Library service, media protocol
+cmd/xclip/             CLI
 internal/core/         Data layer: entry/asset model, ingestion, search, migration
 internal/service/      MyGo bindings and the scoped media handler
-cmd/xclip/             CLI
-src/                   TypeScript frontend
-test/                  Frontend tests
+web/                   TypeScript frontend, tests, and Vite/TypeScript config
+resources/             App icon
+scripts/               Packaging helper
 docs/                  Product design and v1 notes
 legacy/swift/          v1 Swift app and CLI (frozen)
 ```
@@ -98,8 +99,8 @@ person's own free-form note and is not subject to this rule.
    content matters, add `--describe <path>="What it shows."`.
 3. **Retrieve**: `xclip tags`, then `xclip search <keyword>` or `xclip search -t <tag>`, then
    `xclip show <short-id> --asset <path>`.
-4. **Maintain**: `xclip update` for metadata, `xclip delete` for an entry. Deleting removes rows;
-   unreferenced blobs can be reclaimed by a maintenance command that is not implemented yet.
+4. **Maintain**: `xclip update` for metadata, `xclip delete` for an entry, and `xclip prune` to
+   reclaim blobs no entry references. Deleting removes rows; blobs stay until `prune` runs.
 
 ## Data model
 

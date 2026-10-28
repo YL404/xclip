@@ -19,9 +19,9 @@ Working notes for coding agents in this repository.
 `internal/core` is the data layer: SQLite through `github.com/egoist/mygo/plugins/sqlite`, an
 entry/asset/document model, content-addressed blobs, ingestion, search, and v1 migration.
 `internal/service` exposes the same core through MyGo bindings and serves owned media by asset ID.
-`cmd/xclip` is the CLI; `src/` is the TypeScript frontend (MyGo web frontend, generated client in
-`src/mygo.ts`). Both the app and the CLI open the same library directory; never give the frontend
-its own SQL connection.
+`cmd/app` is the MyGo app entry; `cmd/xclip` is the CLI; `web/` is the TypeScript frontend
+(MyGo web frontend, generated client in `web/src/mygo.ts`). Both the app and the CLI open the same
+library directory; never give the frontend its own SQL connection.
 
 The library root contains `library.db` and `blobs/`. Originals are copied in; the source path is
 provenance only. Do not make display or search depend on the original file.
