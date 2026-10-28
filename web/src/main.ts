@@ -182,14 +182,12 @@ function cardHTML(entry: SearchResult, group?: string): string {
   const doc = documentAsset(entry.assets);
   const description = doc && texts.has(doc.id) ? contentExcerpt(texts.get(doc.id)!) : entry.note || entry.summary || `${entry.assets.length} 个文件，已收录到本地`;
   const asset = primaryAsset(entry.assets);
-  const kind = asset ? kindLabel(asset.kind) : "无附件";
-  const mixed = asset && asset.kind !== "code" && entry.assets.some((item) => item.kind === "code") ? " · 代码" : "";
-  const count = entry.assets.length > 1 ? ` · ${entry.assets.length} 个文件` : "";
   const metaIcon = asset?.kind === "image" ? "image" : asset?.kind === "video" || asset?.kind === "audio" ? "video" : asset?.kind === "code" ? "code" : "doc";
+  const tags = entry.tags.slice(0, 2).map((tag) => tagHTML(tag)).join("");
   const snippet = match?.snippet.trim() ?? "";
   const showMatch = Boolean(match && !(match.kind === "metadata" && (!snippet || snippet === entry.title)));
   const date = group ? (group === "今天" || group === "昨天" ? timeLabel(entry.created_at) : shortDate(entry.created_at)) : relativeDate(entry.created_at);
-  return `<article class="card" data-id="${esc(entry.id)}" tabindex="0" aria-label="预览${esc(entry.title)}">${cardCover(entry)}<div class="card-body"><h2>${highlight(entry.title, state.query)}</h2>${showMatch ? `<div class="card-match"><b>${match!.path ? esc(match!.path) + (match!.line ? " · 第 " + match!.line + " 行" : "") : "内容信息命中"}</b><span>${highlight(match!.snippet, state.query)}</span></div>` : `<p class="card-description">${highlight(description, state.query)}</p>`}<div class="card-bottom">${entry.tags.slice(0, 2).map((tag) => tagHTML(tag)).join("")}<button class="card-code-id" data-copy-entry="${esc(entry.id)}" title="复制内容编码" aria-label="复制内容编码 #${shortID(entry.id)}"><span>#${shortID(entry.id)}</span>${icon("copy")}</button></div></div><div class="card-meta"><span class="meta-kind">${icon(metaIcon)}<span>${esc(kind + mixed + count)}</span></span><span class="meta-date">${date}</span></div></article>`;
+  return `<article class="card" data-id="${esc(entry.id)}" tabindex="0" aria-label="预览${esc(entry.title)}">${cardCover(entry)}<div class="card-body"><h2>${highlight(entry.title, state.query)}</h2>${showMatch ? `<div class="card-match"><b>${match!.path ? esc(match!.path) + (match!.line ? " · 第 " + match!.line + " 行" : "") : "内容信息命中"}</b><span>${highlight(match!.snippet, state.query)}</span></div>` : `<p class="card-description">${highlight(description, state.query)}</p>`}<div class="card-bottom">${tags}<button class="card-code-id" data-copy-entry="${esc(entry.id)}" title="复制内容编码" aria-label="复制内容编码 #${shortID(entry.id)}"><span>#${shortID(entry.id)}</span>${icon("copy")}</button></div></div><div class="card-meta"><span class="meta-kind">${icon(metaIcon)}<span class="meta-tags">${tags}</span></span><span class="meta-date">${date}</span></div></article>`;
 }
 function renderResults(): void {
   renderNav(); observer.disconnect();

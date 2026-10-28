@@ -112,6 +112,14 @@ test("list view groups dates and shows the date outside today", async () => {
   } finally { await app.window.happyDOM.abort(); app.window.close(); }
 });
 
+test("grid cards show tags instead of content kind and file counts", async () => {
+  const app = await start();
+  try {
+    assert.deepEqual([...app.window.document.querySelectorAll(".card-meta .mini-tag")].map((node) => node.textContent), ["SwiftUI", "交互设计"]);
+    assert.doesNotMatch(app.$(".card-meta").textContent, /代码|个文件|文档/);
+  } finally { await app.window.happyDOM.abort(); app.window.close(); }
+});
+
 test("multi-image covers fill the collage by count", async () => {
   const images = [0, 1, 2].map((index) => ({ ...entry.assets[0], id: `image-${index}`, path: `image-${index}.png`, kind: "image", mime: "image/png", readable: false, sha256: `image-${index}`, size: 100 }));
   const app = await start({ search: async () => [{ ...entry, assets: images, matches: [] }] });

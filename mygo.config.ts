@@ -4,7 +4,7 @@ export default defineConfig({
   name: "XClip",
   slug: "xclip",
   identifier: "com.yli.xclip",
-  version: "0.2.0",
+  version: "0.2.1",
   icon: "resources/icon.png",
   main: "./cmd/app",
   devUrl: "http://localhost:5173",
