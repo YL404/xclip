@@ -5,6 +5,7 @@ DerivedData/
 *.xcodeproj/xcuserdata/
 .DS_Store
 designs/*/_d_meta.json
+designs/xclip-library-v2/
 *.app/
 node_modules/
 dist/
