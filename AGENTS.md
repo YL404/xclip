@@ -9,9 +9,11 @@ Working notes for coding agents in this repository.
 
 - Go 1.27+; frontend tooling needs Node 22.18+ (or Bun).
 - `go test ./...`, `npm test`, `npm run typecheck` must pass before a change is done.
-- `npm run build` packages the app with MyGo into `.build/mygo/<os>-<arch>/`; it takes about
-  7–10 s, so build a new version after every feature change (not docs-only edits) and tell the
-  user the path. The app icon comes from `resources/icon.png`.
+- `./scripts/package-app.sh --install` builds the release app (skipping DMG) and CLI, updates
+  `/Applications/XClip.app` and `~/.local/bin/xclip`, and cleans up temporary `.build/mygo`
+  and `.build/xclip` artifacts; run it after every code/feature change (not docs-only edits)
+  instead of leaving debug builds or duplicate bundles behind. The app icon comes from
+  `resources/icon.png`.
 - `go run ./cmd/xclip ...` runs the CLI during development.
 
 ## Architecture

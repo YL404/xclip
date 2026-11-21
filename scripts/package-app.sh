@@ -40,6 +40,9 @@ if [ "${INSTALL}" -eq 1 ]; then
   mkdir -p "${HOME}/.local/bin"
   cp -f .build/xclip "${HOME}/.local/bin/xclip"
   echo "✓ 已安装: ${HOME}/.local/bin/xclip（确保 ~/.local/bin 在 PATH 里）"
+
+  echo "→ 清理临时构建产物"
+  rm -rf .build/mygo .build/xclip
 fi
 
 if [ "${LAUNCH}" -eq 1 ]; then
@@ -49,4 +52,8 @@ if [ "${LAUNCH}" -eq 1 ]; then
   open "${TARGET}"
 fi
 
-echo "✓ 完成: ${BUNDLE}"
+if [ "${INSTALL}" -eq 1 ]; then
+  echo "✓ 完成: /Applications/XClip.app"
+else
+  echo "✓ 完成: ${BUNDLE}"
+fi
