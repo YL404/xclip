@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestAppSearchIncludesEntriesBeyondCLIDefaultLimit(t *testing.T) {
@@ -308,5 +309,57 @@ func TestPruneRemovesOnlyUnreferencedBlobs(t *testing.T) {
 	}
 	if again, _, err := store.Prune(ctx); err != nil || again != 0 {
 		t.Fatalf("重复清理: %d 个, 错误 %v", again, err)
+	}
+}
+
+func TestSearchSnippetRespectsUTF8Boundaries(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	// 构造单行长文本，让 start-120 与 from+320 刻意落在中文（3 字节）与 emoji（4 字节）字符内部。
+	longLine := "a" + strings.Repeat("中", 60) + "焦点" + strings.Repeat("文", 90) + strings.Repeat("🚀", 40) + " mixed_identifier"
+	if _, err := store.Import(ctx, Import{
+		Title:    "长行中文检索",
+		TextName: "long.md",
+		Text:     longLine,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// 包含大小写折叠后字节数变化的字符（K: 3 字节 -> k: 1 字节；Ⱥ: 2 字节 -> ⱥ: 3 字节）。
+	foldedText := strings.Repeat("K", 20) + strings.Repeat("Ⱥ", 20) + "FocusState 中文段落" + strings.Repeat("测", 150)
+	if _, err := store.Import(ctx, Import{
+		Title:    "大小写偏移测试",
+		TextName: "folded.md",
+		Text:     foldedText,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, query := range []string{"a", "焦点", "中", "mixed_identifier", "FocusState", "中文段落"} {
+		results, err := store.Search(ctx, SearchOptions{Query: query, AllResults: true})
+		if err != nil {
+			t.Fatalf("搜索 %q 失败: %v", query, err)
+		}
+		if len(results) == 0 {
+			t.Fatalf("搜索 %q 预期命中", query)
+		}
+		for _, result := range results {
+			for _, match := range result.Matches {
+				if !utf8.ValidString(match.Snippet) {
+					t.Fatalf("搜索 %q 返回无效 UTF-8 snippet: %x", query, match.Snippet)
+				}
+				if match.Snippet == "" {
+					t.Fatalf("搜索 %q 返回空 snippet: %+v", query, match)
+				}
+			}
+		}
+	}
+
+	if got := snippet("abc\xffdef", 0, 3); !utf8.ValidString(got) {
+		t.Fatalf("snippet 对异常字节未兜底清理: %x", got)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/egoist/mygo/plugins/sqlite"
@@ -583,6 +584,7 @@ func (s *Store) matches(ctx context.Context, entry Entry, tokens []string) ([]Ma
 		if !ok {
 			continue
 		}
+		first, firstEnd = mapLowerSpan(body, first, firstEnd)
 		line := 1 + strings.Count(body[:first], "\n")
 		matches = append(matches, Match{
 			AssetID: text(row[1]), Path: text(row[2]), Kind: text(row[3]), Line: line,
@@ -601,10 +603,38 @@ func hasShortToken(tokens []string) bool {
 	return false
 }
 
+// mapLowerSpan 将 strings.ToLower(body) 中的字节区间映射回 body 的合法 UTF-8 字符边界。
+func mapLowerSpan(body string, start, end int) (int, int) {
+	bodyStart, bodyEnd := -1, len(body)
+	lowerPos := 0
+	for i, r := range body {
+		if bodyStart < 0 && lowerPos >= start {
+			bodyStart = i
+		}
+		if lowerPos >= end {
+			bodyEnd = i
+			break
+		}
+		lowerPos += utf8.RuneLen(unicode.ToLower(r))
+	}
+	if bodyStart < 0 {
+		bodyStart = len(body)
+	}
+	if bodyEnd < bodyStart {
+		bodyEnd = bodyStart
+	}
+	return bodyStart, bodyEnd
+}
+
 func snippet(body string, start, end int) string {
+	start = max(0, min(start, len(body)))
+	end = max(start, min(end, len(body)))
 	from := strings.LastIndex(body[:start], "\n") + 1
 	if start-from > 120 {
 		from = start - 120
+		for from < start && !utf8.RuneStart(body[from]) {
+			from++
+		}
 	}
 	to := strings.Index(body[end:], "\n")
 	if to < 0 {
@@ -614,8 +644,11 @@ func snippet(body string, start, end int) string {
 	}
 	if to-from > 320 {
 		to = from + 320
+		for to > from && to < len(body) && !utf8.RuneStart(body[to]) {
+			to--
+		}
 	}
-	return strings.TrimSpace(body[from:to])
+	return strings.TrimSpace(strings.ToValidUTF8(body[from:to], "\uFFFD"))
 }
 
 func (s *Store) AssetText(ctx context.Context, target, assetPath string) (string, error) {
