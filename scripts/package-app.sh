@@ -29,7 +29,8 @@ if [ ! -d "${BUNDLE}" ]; then
 fi
 
 echo "→ 构建 xclip CLI"
-go build -trimpath -ldflags="-s -w" -o .build/xclip ./cmd/xclip
+# 保留源码路径以便 mygo native 模块定位 mygo-plugin.json 并加载匹配的 libSqlitecore
+go build -ldflags="-s -w" -o .build/xclip ./cmd/xclip
 
 if [ "${INSTALL}" -eq 1 ]; then
   echo "→ 安装到 /Applications"
