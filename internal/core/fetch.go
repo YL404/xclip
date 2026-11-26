@@ -19,6 +19,13 @@ import (
 
 const maxFetchBytes = 20 << 20
 
+var (
+	fetchHTTPClient   = &http.Client{Timeout: 45 * time.Second}
+	fxTwitterEndpoint = func(ref xRef) string {
+		return "https://api.fxtwitter.com/" + url.PathEscape(ref.Handle) + "/status/" + ref.ID
+	}
+)
+
 type fetchedRemote struct {
 	Title  string
 	Text   string
@@ -37,7 +44,7 @@ type fetcher struct {
 }
 
 func newFetcher() *fetcher {
-	return &fetcher{client: &http.Client{Timeout: 45 * time.Second}}
+	return &fetcher{client: fetchHTTPClient}
 }
 
 // ImportURL saves the canonical URL even when the remote source cannot be read.
@@ -54,9 +61,13 @@ func (s *Store) ImportURL(ctx context.Context, rawURL, title, summary, note stri
 			return Entry{}, err
 		}
 	}
-	remote, fetchErr := newFetcher().fetch(ctx, canonical)
+	fetcher := newFetcher()
+	remote, fetchErr := fetcher.fetch(ctx, canonical)
 	if remote == nil {
 		remote = &fetchedRemote{Source: canonical, Title: title}
+	}
+	if remote.Source == "" {
+		remote.Source = canonical
 	}
 	if title == "" {
 		title = remote.Title
@@ -257,7 +268,7 @@ func (f *fetcher) fetchX(ctx context.Context, ref xRef) (*fetchedRemote, error) 
 	if ref.Handle == "i" {
 		return nil, errors.New("该 X 链接不带用户名，无法抓取；可以稍后手动补充正文")
 	}
-	endpoint := "https://api.fxtwitter.com/" + url.PathEscape(ref.Handle) + "/status/" + ref.ID
+	endpoint := fxTwitterEndpoint(ref)
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
@@ -282,6 +293,9 @@ func (f *fetcher) fetchX(ctx context.Context, ref xRef) (*fetchedRemote, error) 
 		Title:  tweet.Author.Name + " · X",
 		Text:   tweet.Text,
 		Source: "https://x.com/" + strings.ToLower(tweet.Author.ScreenName) + "/status/" + tweet.ID,
+	}
+	if result.Text == "" {
+		result.Text = result.Source
 	}
 	if tweet.Media != nil {
 		for index, item := range tweet.Media.All {

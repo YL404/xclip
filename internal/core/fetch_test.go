@@ -77,3 +77,47 @@ func TestFailedURLStillSavesSource(t *testing.T) {
 		t.Fatalf("来源链接不可读取: %q %v", text, err)
 	}
 }
+
+func TestXPostWithoutTextStillSavesSourceAndMedia(t *testing.T) {
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/photo.jpg" {
+			w.Header().Set("Content-Type", "image/jpeg")
+			_, _ = w.Write([]byte("\xff\xd8\xff\xd9"))
+			return
+		}
+		if r.URL.Path != "/api.fxtwitter.com/simoomdesign/status/123" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":200,"message":"OK","tweet":{"id":"123","text":"","author":{"screen_name":"simoomdesign","name":"Simoom"},"media":{"all":[{"type":"photo","url":"` + server.URL + `/photo.jpg"}]}}}`))
+	}))
+	defer server.Close()
+
+	store, err := Open(context.Background(), t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	originalClient := fetchHTTPClient
+	fetchHTTPClient = server.Client()
+	defer func() { fetchHTTPClient = originalClient }()
+	originalEndpoint := fxTwitterEndpoint
+	fxTwitterEndpoint = func(ref xRef) string { return server.URL + "/api.fxtwitter.com/" + ref.Handle + "/status/" + ref.ID }
+	defer func() { fxTwitterEndpoint = originalEndpoint }()
+
+	entry, err := store.ImportURL(context.Background(), "https://x.com/simoomdesign/status/123", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entry.Assets) != 2 {
+		t.Fatalf("来源链接和图片都应保存: %+v", entry.Assets)
+	}
+	text, err := store.AssetText(context.Background(), entry.ID, "content.md")
+	if err != nil || !strings.Contains(text, entry.Source) {
+		t.Fatalf("来源链接不可读取: %q %v", text, err)
+	}
+}
+
