@@ -14,12 +14,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	library := service.NewLibrary(root)
-	mygo.Bind(library)
+	runtime := service.NewRuntime(root)
+	mygo.Bind(runtime.Library())
 	watch, stopWatch := context.WithCancel(context.Background())
 	defer stopWatch()
-	go library.Watch(watch)
-	if err := mygo.Protocol.Handle("xclip-media", service.MediaHandler(library)); err != nil {
+	go runtime.Watch(watch)
+	if err := mygo.Protocol.Handle("xclip-media", service.MediaHandler(runtime)); err != nil {
 		log.Fatal(err)
 	}
 	mygo.App.WhenReady(func() {
@@ -35,5 +35,5 @@ func main() {
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}
-	library.Close()
+	runtime.Close()
 }

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func MediaHandler(library *Library) http.Handler {
+func MediaHandler(runtime *Runtime) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -18,20 +18,20 @@ func MediaHandler(library *Library) http.Handler {
 			http.NotFound(w, r)
 			return
 		}
-		path, name, err := library.serve(r.Context(), id)
+		path, name, err := runtime.serve(r.Context(), id)
 		if err != nil {
 			http.NotFound(w, r)
 			return
 		}
 		if r.URL.Query().Get("preview") == "1" {
-			path, err = library.previewPath(r.Context(), id)
+			previewPath, err := runtime.previewPathForAsset(path, name)
 			if err != nil {
 				http.NotFound(w, r)
 				return
 			}
 			w.Header().Set("Content-Type", "image/jpeg")
 			w.Header().Set("X-Content-Type-Options", "nosniff")
-			http.ServeFile(w, r, path+".jpg")
+			http.ServeFile(w, r, previewPath+".jpg")
 			return
 		}
 		mediaType := mime.TypeByExtension(strings.ToLower(filepath.Ext(name)))

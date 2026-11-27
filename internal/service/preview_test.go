@@ -21,8 +21,9 @@ func TestPreviewUsesOwnedVideoAndValidatesCache(t *testing.T) {
 	if err := os.WriteFile(source, original, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	library := NewLibrary(filepath.Join(root, "library"))
-	defer library.Close()
+	runtime := NewRuntime(filepath.Join(root, "library"))
+	defer runtime.Close()
+	library := runtime.Library()
 	entry, err := library.Import(ctx, []string{source})
 	if err != nil {
 		t.Fatal(err)
@@ -60,7 +61,7 @@ func TestPreviewUsesOwnedVideoAndValidatesCache(t *testing.T) {
 		t.Fatalf("缓存元数据: %+v %v", preview, err)
 	}
 	response := httptest.NewRecorder()
-	MediaHandler(library).ServeHTTP(response, httptest.NewRequest("GET", "xclip-media://localhost/"+asset.ID+"?preview=1", nil))
+	MediaHandler(runtime).ServeHTTP(response, httptest.NewRequest("GET", "xclip-media://localhost/"+asset.ID+"?preview=1", nil))
 	if response.Code != 200 || response.Header().Get("Content-Type") != "image/jpeg" || !bytes.Equal(response.Body.Bytes(), buffer.Bytes()) {
 		t.Fatalf("封面资源读取失败: %d", response.Code)
 	}
@@ -69,7 +70,7 @@ func TestPreviewUsesOwnedVideoAndValidatesCache(t *testing.T) {
 		t.Fatalf("生成封面不能修改原件: %v", err)
 	}
 	response = httptest.NewRecorder()
-	MediaHandler(library).ServeHTTP(response, httptest.NewRequest("GET", "xclip-media://localhost/unknown?preview=1", nil))
+	MediaHandler(runtime).ServeHTTP(response, httptest.NewRequest("GET", "xclip-media://localhost/unknown?preview=1", nil))
 	if response.Code != 404 {
 		t.Fatalf("未知附件不应暴露缓存: %d", response.Code)
 	}

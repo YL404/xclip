@@ -19,21 +19,25 @@ type Preview struct {
 }
 
 // 封面由系统 WebView 解码，Go 仅按已验证附件的内容哈希保存可重建缓存。
-func (l *Library) previewPath(ctx context.Context, id string) (string, error) {
-	path, name, err := l.serve(ctx, id)
-	if err != nil {
-		return "", err
-	}
+func (r *Runtime) previewPathForAsset(path, name string) (string, error) {
 	switch strings.ToLower(filepath.Ext(name)) {
 	case ".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi":
 	default:
 		return "", fmt.Errorf("此附件不支持视频封面")
 	}
-	return filepath.Join(l.root, "cache", "previews", filepath.Base(path)+"-v1"), nil
+	return filepath.Join(r.root, "cache", "previews", filepath.Base(path)+"-v1"), nil
+}
+
+func (r *Runtime) previewPath(ctx context.Context, id string) (string, error) {
+	path, name, err := r.serve(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return r.previewPathForAsset(path, name)
 }
 
 func (l *Library) Preview(ctx context.Context, id string) (Preview, error) {
-	path, err := l.previewPath(ctx, id)
+	path, err := l.runtime.previewPath(ctx, id)
 	if err != nil {
 		return Preview{}, err
 	}
@@ -49,7 +53,7 @@ func (l *Library) Preview(ctx context.Context, id string) (Preview, error) {
 }
 
 func (l *Library) CachePreview(ctx context.Context, id, poster string, duration float64) error {
-	path, err := l.previewPath(ctx, id)
+	path, err := l.runtime.previewPath(ctx, id)
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,124 @@
+/* 对话框与全局提示 */
+.info-dialog {
+  width: 460px;
+  max-width: calc(100vw - 40px);
+  padding: 24px;
+}
+
+.info-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.info-head h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.info-dialog p {
+  color: var(--secondary);
+  font-size: 12.5px;
+  line-height: 1.85;
+  margin: 10px 0;
+}
+
+.shortcut-list {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 9px;
+  color: var(--secondary);
+  font-size: 11.5px;
+  margin-top: 19px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.edit-dialog {
+  width: 470px;
+  max-width: calc(100vw - 40px);
+  padding: 24px;
+}
+
+.dialog-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 19px;
+}
+
+.dialog-head h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.edit-dialog label {
+  display: block;
+  font-size: 11.5px;
+  color: var(--secondary);
+  margin-top: 15px;
+}
+
+.edit-dialog input,
+.edit-dialog textarea {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  font: 12.5px/1.65 var(--font);
+  resize: vertical;
+}
+
+.edit-dialog input:focus,
+.edit-dialog textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.edit-dialog small {
+  display: block;
+  margin-top: 4px;
+  font-size: 9.5px;
+  color: var(--muted);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 21px;
+}
+
+.form-error {
+  font-size: 11.5px;
+  color: var(--danger);
+  margin-top: 11px;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 23px;
+  transform: translate(-50%, 10px);
+  background: var(--ink);
+  color: var(--bg);
+  padding: 8px 14px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 100;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.toast.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}

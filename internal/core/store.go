@@ -380,14 +380,14 @@ func (s *Store) Patch(ctx context.Context, target string, patch Patch) (Entry, e
 			sqlite.Statement{SQL: "INSERT INTO documents(entry_id, asset_id, kind, body) VALUES (?, ?, 'description', ?)", Args: []any{entry.ID, *assetID, text}},
 		)
 	}
+	if len(statements) == 0 {
+		return s.Get(ctx, entry.ID)
+	}
 	statements = append(statements,
 		sqlite.Statement{SQL: "UPDATE entries SET updated_at = ? WHERE id = ?", Args: []any{now, entry.ID}},
 		sqlite.Statement{SQL: "DELETE FROM documents WHERE entry_id = ? AND kind = 'metadata'", Args: []any{entry.ID}},
 		sqlite.Statement{SQL: "INSERT INTO documents(entry_id, kind, body) VALUES (?, 'metadata', ?)", Args: []any{entry.ID, strings.TrimSpace(entry.Title + "\n" + entry.Summary + "\n" + entry.Note)}},
 	)
-	if len(statements) == 2 && patch.Tags == nil {
-		return s.Get(ctx, entry.ID)
-	}
 	if _, err := s.db.Transaction(ctx, statements); err != nil {
 		return Entry{}, err
 	}
@@ -436,6 +436,15 @@ func tagStatements(entryID string, rawTags []string) []sqlite.Statement {
 	return statements
 }
 
+const queryChunkSize = 400
+
+func placeholders(count int) string {
+	if count <= 0 {
+		return ""
+	}
+	return strings.Repeat("?,", count-1) + "?"
+}
+
 func (s *Store) entries(ctx context.Context, where string, args []any, includeAssets bool) ([]Entry, error) {
 	rows, err := s.db.Query(ctx, `SELECT e.id, e.title, e.summary, e.note, e.source, e.created_at, e.updated_at
 		FROM entries e `+where+` ORDER BY e.created_at DESC, e.id DESC`, args...)
@@ -446,39 +455,116 @@ func (s *Store) entries(ctx context.Context, where string, args []any, includeAs
 	for _, values := range rows.Values {
 		created, _ := values[5].(int64)
 		updated, _ := values[6].(int64)
-		entries = append(entries, Entry{ID: text(values[0]), Title: text(values[1]), Summary: text(values[2]), Note: text(values[3]), Source: text(values[4]), CreatedAt: time.Unix(created, 0).UTC(), UpdatedAt: time.Unix(updated, 0).UTC(), Tags: []string{}})
-	}
-	for i := range entries {
-		tags, err := s.db.Query(ctx, `SELECT t.slug FROM entry_tags et JOIN tags t ON t.id = et.tag_id WHERE et.entry_id = ? ORDER BY t.slug`, entries[i].ID)
-		if err != nil {
-			return nil, err
-		}
-		for _, row := range tags.Values {
-			entries[i].Tags = append(entries[i].Tags, text(row[0]))
+		entry := Entry{
+			ID:        text(values[0]),
+			Title:     text(values[1]),
+			Summary:   text(values[2]),
+			Note:      text(values[3]),
+			Source:    text(values[4]),
+			CreatedAt: time.Unix(created, 0).UTC(),
+			UpdatedAt: time.Unix(updated, 0).UTC(),
+			Tags:      []string{},
 		}
 		if includeAssets {
-			assets, err := s.db.Query(ctx, `SELECT a.id, a.path, a.kind, a.mime, a.size, a.sha256,
-				EXISTS(SELECT 1 FROM documents d WHERE d.asset_id = a.id AND d.kind IN ('text', 'code'))
-				FROM assets a WHERE a.entry_id = ? ORDER BY a.position`, entries[i].ID)
-			if err != nil {
-				return nil, err
-			}
-			entries[i].Assets = make([]Asset, 0, len(assets.Values))
-			for _, values := range assets.Values {
-				size, _ := values[4].(int64)
-				readable, _ := values[6].(int64)
-				entries[i].Assets = append(entries[i].Assets, Asset{ID: text(values[0]), Path: text(values[1]), Kind: text(values[2]), MIME: text(values[3]), Size: size, SHA256: text(values[5]), LocalPath: blobPath(s.root, text(values[5])), Readable: readable != 0})
-			}
+			entry.Assets = []Asset{}
 		}
+		entries = append(entries, entry)
+	}
+	if err := s.hydrateEntries(ctx, entries, includeAssets); err != nil {
+		return nil, err
 	}
 	return entries, nil
 }
 
-func (s *Store) Search(ctx context.Context, options SearchOptions) ([]SearchResult, error) {
-	limit := options.Limit
-	if limit <= 0 {
-		limit = 50
+func (s *Store) entriesByIDs(ctx context.Context, ids []string, includeAssets bool) ([]Entry, error) {
+	if len(ids) == 0 {
+		return []Entry{}, nil
 	}
+	byID := make(map[string]Entry, len(ids))
+	for start := 0; start < len(ids); start += queryChunkSize {
+		chunk := ids[start:min(start+queryChunkSize, len(ids))]
+		args := make([]any, len(chunk))
+		for i, id := range chunk {
+			args[i] = id
+		}
+		loaded, err := s.entries(ctx, "WHERE e.id IN ("+placeholders(len(chunk))+")", args, includeAssets)
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range loaded {
+			byID[entry.ID] = entry
+		}
+	}
+	ordered := make([]Entry, 0, len(ids))
+	for _, id := range ids {
+		if entry, ok := byID[id]; ok {
+			ordered = append(ordered, entry)
+		}
+	}
+	return ordered, nil
+}
+
+func (s *Store) hydrateEntries(ctx context.Context, entries []Entry, includeAssets bool) error {
+	if len(entries) == 0 {
+		return nil
+	}
+	indexByID := make(map[string]int, len(entries))
+	for i := range entries {
+		indexByID[entries[i].ID] = i
+	}
+	for start := 0; start < len(entries); start += queryChunkSize {
+		end := min(start+queryChunkSize, len(entries))
+		args := make([]any, end-start)
+		for i := start; i < end; i++ {
+			args[i-start] = entries[i].ID
+		}
+		inClause := placeholders(len(args))
+		tags, err := s.db.Query(ctx, `SELECT et.entry_id, t.slug
+			FROM entry_tags et JOIN tags t ON t.id = et.tag_id
+			WHERE et.entry_id IN (`+inClause+`)
+			ORDER BY et.entry_id, t.slug`, args...)
+		if err != nil {
+			return err
+		}
+		for _, row := range tags.Values {
+			if idx, ok := indexByID[text(row[0])]; ok {
+				entries[idx].Tags = append(entries[idx].Tags, text(row[1]))
+			}
+		}
+		if !includeAssets {
+			continue
+		}
+		assets, err := s.db.Query(ctx, `SELECT a.entry_id, a.id, a.path, a.kind, a.mime, a.size, a.sha256,
+			EXISTS(SELECT 1 FROM documents d WHERE d.asset_id = a.id AND d.kind IN ('text', 'code'))
+			FROM assets a
+			WHERE a.entry_id IN (`+inClause+`)
+			ORDER BY a.entry_id, a.position`, args...)
+		if err != nil {
+			return err
+		}
+		for _, values := range assets.Values {
+			idx, ok := indexByID[text(values[0])]
+			if !ok {
+				continue
+			}
+			size, _ := values[5].(int64)
+			readable, _ := values[7].(int64)
+			entries[idx].Assets = append(entries[idx].Assets, Asset{
+				ID:        text(values[1]),
+				Path:      text(values[2]),
+				Kind:      text(values[3]),
+				MIME:      text(values[4]),
+				Size:      size,
+				SHA256:    text(values[6]),
+				LocalPath: blobPath(s.root, text(values[6])),
+				Readable:  readable != 0,
+			})
+		}
+	}
+	return nil
+}
+
+func buildEntryFilter(options SearchOptions) (string, []any, error) {
 	where, args := "WHERE 1 = 1", []any{}
 	if options.Kind != "" {
 		where += " AND EXISTS(SELECT 1 FROM assets a WHERE a.entry_id = e.id AND a.kind = ?)"
@@ -487,120 +573,167 @@ func (s *Store) Search(ctx context.Context, options SearchOptions) ([]SearchResu
 	for _, raw := range options.Tags {
 		slug, err := NormalizeSlug(raw)
 		if err != nil {
-			return nil, err
+			return "", nil, err
 		}
 		where += " AND EXISTS(SELECT 1 FROM entry_tags et JOIN tags t ON t.id = et.tag_id WHERE et.entry_id = e.id AND t.slug = ?)"
 		args = append(args, slug)
 	}
-	entries, err := s.entries(ctx, where, args, true)
+	return where, args, nil
+}
+
+func (s *Store) Search(ctx context.Context, options SearchOptions) ([]SearchResult, error) {
+	limit := options.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	where, args, err := buildEntryFilter(options)
 	if err != nil {
 		return nil, err
 	}
 	tokens := strings.Fields(options.Query)
-	results := make([]SearchResult, 0)
-	for _, entry := range entries {
-		matches, err := s.matches(ctx, entry, tokens)
+	if len(tokens) == 0 {
+		sqlQuery := `SELECT e.id, e.title, e.summary, e.note, e.source, e.created_at, e.updated_at
+			FROM entries e ` + where + ` ORDER BY e.created_at DESC, e.id DESC`
+		if !options.AllResults {
+			sqlQuery += " LIMIT ?"
+			args = append(args, limit)
+		}
+		rows, err := s.db.Query(ctx, sqlQuery, args...)
 		if err != nil {
 			return nil, err
 		}
-		if len(tokens) > 0 && len(matches) == 0 {
+		entries := make([]Entry, 0, len(rows.Values))
+		for _, values := range rows.Values {
+			created, _ := values[5].(int64)
+			updated, _ := values[6].(int64)
+			entries = append(entries, Entry{
+				ID:        text(values[0]),
+				Title:     text(values[1]),
+				Summary:   text(values[2]),
+				Note:      text(values[3]),
+				Source:    text(values[4]),
+				CreatedAt: time.Unix(created, 0).UTC(),
+				UpdatedAt: time.Unix(updated, 0).UTC(),
+				Tags:      []string{},
+				Assets:    []Asset{},
+			})
+		}
+		if err := s.hydrateEntries(ctx, entries, true); err != nil {
+			return nil, err
+		}
+		results := make([]SearchResult, len(entries))
+		for i, entry := range entries {
+			results[i] = SearchResult{Entry: entry, Matches: []Match{}}
+		}
+		return results, nil
+	}
+
+	// 利用 FTS5 trigram 对满足条件的长词做倒排剪枝，短词或含非 ASCII 大小写折叠的词在 Go 中精确校验。
+	docWhere := where
+	docArgs := append([]any(nil), args...)
+	for _, token := range tokens {
+		if utf8.RuneCountInString(token) >= 3 && isFTSTrigramSafe(token) {
+			docWhere += ` AND d.id IN (SELECT rowid FROM documents_fts WHERE documents_fts MATCH ?)`
+			docArgs = append(docArgs, ftsPhrase(token))
+		}
+	}
+	rows, err := s.db.Query(ctx, `SELECT e.id, COALESCE(d.asset_id, ''), COALESCE(a.path, ''), d.kind, d.body
+		FROM documents d
+		JOIN entries e ON e.id = d.entry_id
+		LEFT JOIN assets a ON a.id = d.asset_id `+docWhere+`
+		ORDER BY e.created_at DESC, e.id DESC, d.id ASC`, docArgs...)
+	if err != nil {
+		return nil, err
+	}
+
+	lowerTokens := make([]string, len(tokens))
+	for i, token := range tokens {
+		lowerTokens[i] = strings.ToLower(token)
+	}
+
+	// 每份文档只报告首次命中位置及总命中次数，避免长代码文件刷屏。
+	matchedOrder := make([]string, 0)
+	matchesByEntry := make(map[string][]Match)
+	for _, row := range rows.Values {
+		entryID := text(row[0])
+		if !options.AllResults && len(matchedOrder) >= limit {
+			if _, seen := matchesByEntry[entryID]; !seen {
+				break
+			}
+		}
+		match, ok := matchDocument(text(row[1]), text(row[2]), text(row[3]), text(row[4]), lowerTokens)
+		if !ok {
 			continue
 		}
-		results = append(results, SearchResult{Entry: entry, Matches: matches})
-		if !options.AllResults && len(results) >= limit {
-			break
+		if _, seen := matchesByEntry[entryID]; !seen {
+			matchedOrder = append(matchedOrder, entryID)
 		}
+		matchesByEntry[entryID] = append(matchesByEntry[entryID], match)
+	}
+	entries, err := s.entriesByIDs(ctx, matchedOrder, true)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]SearchResult, 0, len(entries))
+	for _, entry := range entries {
+		results = append(results, SearchResult{Entry: entry, Matches: matchesByEntry[entry.ID]})
 	}
 	return results, nil
 }
 
-func (s *Store) matches(ctx context.Context, entry Entry, tokens []string) ([]Match, error) {
-	if len(tokens) == 0 {
-		return []Match{}, nil
-	}
-	rows, err := s.db.Query(ctx, `SELECT d.id, COALESCE(d.asset_id, ''), COALESCE(a.path, ''), d.kind, d.body
-		FROM documents d LEFT JOIN assets a ON a.id = d.asset_id WHERE d.entry_id = ?`, entry.ID)
-	if err != nil {
-		return nil, err
-	}
-	var ftsIDs []int64
-	for _, token := range tokens {
-		if utf8.RuneCountInString(token) >= 3 {
-			rows, err := s.db.Query(ctx, `SELECT d.id FROM documents d JOIN documents_fts f ON f.rowid = d.id
-				WHERE d.entry_id = ? AND documents_fts MATCH ?`, entry.ID, `"`+strings.ReplaceAll(strings.ToLower(token), `"`, "")+`"`)
-			if err != nil {
-				return nil, err
-			}
-			ids := make([]int64, 0, len(rows.Values))
-			for _, row := range rows.Values {
-				id, _ := row[0].(int64)
-				ids = append(ids, id)
-			}
-			ftsIDs = append(ftsIDs, ids...)
+// isFTSTrigramSafe 判断词项是否可安全交由 SQLite trigram 索引过滤。
+// SQLite 默认 trigram 仅对 ASCII 做大小写折叠，含非 ASCII 大小写变体的词留待 Go 精确匹配。
+func isFTSTrigramSafe(token string) bool {
+	for _, r := range token {
+		if r > unicode.MaxASCII && unicode.ToLower(r) != unicode.ToUpper(r) {
+			return false
 		}
 	}
-	longMatches := map[int64]bool{}
-	for _, id := range ftsIDs {
-		longMatches[id] = true
-	}
-	// A match is reported once per document: the first location plus the number
-	// of occurrences. Returning every occurrence makes a code file swamp the
-	// result and gives an agent no better choice about which file to read.
-	var matches []Match
-	for _, row := range rows.Values {
-		id, _ := row[0].(int64)
-		body := text(row[4])
-		if len(tokens) > 0 && !longMatches[id] && !hasShortToken(tokens) {
-			continue
-		}
-		first := -1
-		firstEnd := -1
-		count := 0
-		lowerBody := strings.ToLower(body)
-		ok := true
-		for _, token := range tokens {
-			lowerToken := strings.ToLower(token)
-			offset := 0
-			found := false
-			for offset < len(lowerBody) {
-				index := strings.Index(lowerBody[offset:], lowerToken)
-				if index < 0 {
-					break
-				}
-				start := offset + index
-				end := start + len(lowerToken)
-				if start < first || first < 0 {
-					first, firstEnd = start, end
-				}
-				count++
-				found = true
-				offset = end
-			}
-			if !found {
-				ok = false
-				break
-			}
-		}
-		if !ok {
-			continue
-		}
-		first, firstEnd = mapLowerSpan(body, first, firstEnd)
-		line := 1 + strings.Count(body[:first], "\n")
-		matches = append(matches, Match{
-			AssetID: text(row[1]), Path: text(row[2]), Kind: text(row[3]), Line: line,
-			Start: first, End: firstEnd, Count: count, Snippet: snippet(body, first, firstEnd),
-		})
-	}
-	return matches, nil
+	return true
 }
 
-func hasShortToken(tokens []string) bool {
-	for _, token := range tokens {
-		if utf8.RuneCountInString(token) < 3 {
-			return true
+func ftsPhrase(token string) string {
+	return `"` + strings.ReplaceAll(strings.ToLower(token), `"`, `""`) + `"`
+}
+
+func matchDocument(assetID, path, kind, body string, lowerTokens []string) (Match, bool) {
+	first := -1
+	firstEnd := -1
+	count := 0
+	lowerBody := strings.ToLower(body)
+	for _, lowerToken := range lowerTokens {
+		offset := 0
+		found := false
+		for offset < len(lowerBody) {
+			index := strings.Index(lowerBody[offset:], lowerToken)
+			if index < 0 {
+				break
+			}
+			start := offset + index
+			end := start + len(lowerToken)
+			if start < first || first < 0 {
+				first, firstEnd = start, end
+			}
+			count++
+			found = true
+			offset = end
+		}
+		if !found {
+			return Match{}, false
 		}
 	}
-	return false
+	first, firstEnd = mapLowerSpan(body, first, firstEnd)
+	line := 1 + strings.Count(body[:first], "\n")
+	return Match{
+		AssetID: assetID,
+		Path:    path,
+		Kind:    kind,
+		Line:    line,
+		Start:   first,
+		End:     firstEnd,
+		Count:   count,
+		Snippet: snippet(body, first, firstEnd),
+	}, true
 }
 
 // mapLowerSpan 将 strings.ToLower(body) 中的字节区间映射回 body 的合法 UTF-8 字符边界。

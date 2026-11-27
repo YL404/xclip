@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -361,5 +362,41 @@ func TestSearchSnippetRespectsUTF8Boundaries(t *testing.T) {
 
 	if got := snippet("abc\xffdef", 0, 3); !utf8.ValidString(got) {
 		t.Fatalf("snippet 对异常字节未兜底清理: %x", got)
+	}
+}
+
+func TestSearchHandlesQuotesShortTokensAndNoOpPatch(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	entry, err := store.Import(ctx, Import{
+		Title:    "引号与短词检索",
+		TextName: "QuoteDemo.swift",
+		Text:     "let label = \"焦点\"\nfunc run(id: Int) { _ = \"ok\" }",
+		Tags:     []string{"swiftui:SwiftUI 开发"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, query := range []string{`"焦点"`, `"ok" id`, `焦点 func`} {
+		results, err := store.Search(ctx, SearchOptions{Query: query})
+		if err != nil || len(results) != 1 || results[0].ID != entry.ID {
+			t.Fatalf("搜索 %q 预期命中单条: %+v %v", query, results, err)
+		}
+	}
+
+	// 空补丁不应改写 updated_at。
+	store.now = func() time.Time { return entry.UpdatedAt.Add(time.Hour) }
+	unchanged, err := store.Patch(ctx, entry.ID, Patch{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !unchanged.UpdatedAt.Equal(entry.UpdatedAt) {
+		t.Fatalf("空 Patch 改写了 updated_at: %v -> %v", entry.UpdatedAt, unchanged.UpdatedAt)
 	}
 }

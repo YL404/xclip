@@ -1,0 +1,387 @@
+/* 应用骨架与侧边栏 */
+.app {
+  display: grid;
+  grid-template-columns: 196px minmax(0, 1fr);
+  height: 100%;
+  overflow: hidden;
+}
+
+.sidebar {
+  background: var(--sidebar);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: 0 12px 11px;
+  overflow-y: auto;
+  min-height: 0;
+  scrollbar-width: thin;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 54px;
+  flex-shrink: 0;
+  padding: 0 8px 0 calc(var(--mygo-titlebar-inset-left, 0px) + 8px);
+  margin-bottom: 12px;
+  --app-region: drag;
+}
+
+.brand img {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+}
+
+.brand-word {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.7px;
+}
+
+.primary-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 32px;
+  border-radius: 6px;
+  padding: 5px 9px;
+  text-align: left;
+  color: var(--secondary);
+  font-size: 12.5px;
+}
+
+.nav-item svg {
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+}
+
+.nav-item .count {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.nav-item:hover {
+  background: var(--hover);
+}
+
+.nav-item.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nav-item.active svg,
+.nav-item.active .count {
+  color: var(--accent);
+}
+
+.nav-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  padding: 0 10px;
+  margin-bottom: 5px;
+}
+
+.tags-toggle {
+  font-size: 10px;
+  color: var(--muted);
+  padding: 2px 4px;
+  border-radius: 4px;
+  letter-spacing: 0;
+}
+
+.tags-toggle:hover {
+  color: var(--accent);
+  background: var(--hover);
+}
+
+.tag-section {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+#tag-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-bottom: 4px;
+  overflow-y: auto;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.tag-item {
+  min-height: 27px;
+  padding: 3px 9px;
+  font-size: 12px;
+}
+
+.tag-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+  margin: 0 5px;
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+
+.nav-item.active .tag-dot {
+  background: var(--accent);
+  opacity: 1;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: 13px 8px 2px;
+  border-top: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.local-state {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10.5px;
+  color: var(--secondary);
+  padding: 2px 0 9px;
+}
+
+.local-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+  flex-shrink: 0;
+}
+
+.footer-tools {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  margin-left: -5px;
+}
+
+.footer-tools .icon-btn {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+}
+
+.footer-tools svg,
+.theme-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* 主区域与顶栏 */
+.main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.topbar {
+  height: 54px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  position: relative;
+  z-index: 20;
+  --app-region: drag;
+}
+
+.topbar-crumb {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.topbar-crumb strong {
+  font-weight: 500;
+  color: var(--secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 360px;
+}
+
+.topbar .divider {
+  color: var(--line-strong);
+}
+
+.topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 300px;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  transition: width 0.2s ease, border-color 0.15s, box-shadow 0.15s;
+  --app-region: no-drag;
+}
+
+.search-box:focus-within {
+  width: 380px;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.search-box > svg {
+  color: var(--muted);
+  width: 15px;
+  height: 15px;
+}
+
+.search-box input {
+  border: 0;
+  outline: none;
+  background: transparent;
+  min-width: 0;
+  flex: 1;
+  font-size: 12px;
+  height: 100%;
+}
+
+.search-box input::placeholder {
+  color: var(--muted);
+  opacity: 0.75;
+}
+
+.search-box input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.search-box input:focus-visible {
+  outline: none;
+}
+
+.search-box .icon-btn {
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+}
+
+.search-box .icon-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.search-box kbd {
+  font-size: 9.5px;
+  padding: 1px 4px;
+  border-color: var(--line);
+  background: var(--bg);
+}
+
+.import-wrap {
+  position: relative;
+  flex-shrink: 0;
+  --app-region: no-drag;
+}
+
+.import-button {
+  padding: 0 9px 0 10px;
+}
+
+.import-button .chevron {
+  width: 12px;
+  height: 12px;
+  opacity: 0.7;
+  margin-left: -1px;
+}
+
+.import-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  width: 228px;
+  padding: 5px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  box-shadow: var(--shadow);
+  z-index: 40;
+}
+
+.import-menu button {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  text-align: left;
+  color: var(--secondary);
+}
+
+.import-menu button:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.import-menu button > svg {
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  color: var(--muted);
+}
+
+.import-menu b {
+  display: block;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--ink);
+}
+
+.import-menu small {
+  display: block;
+  margin-top: 1px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.mobile-menu {
+  display: none !important;
+}

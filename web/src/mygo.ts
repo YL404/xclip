@@ -73,11 +73,11 @@ export interface Tag {
 
 // ---- Services ----
 
+/** Library 是绑定到 MyGo 前端的前端 RPC 服务。 */
 export const Library = {
   cachePreview: bind<[string, string, number], void>("Library.CachePreview", (id: string, poster: string, duration: number) => [id, poster, duration]),
   chooseAndImport: bind<[], Entry>("Library.ChooseAndImport", () => []),
   chooseFilesAndImport: bind<[], Entry>("Library.ChooseFilesAndImport", () => []),
-  close: bind<[], void>("Library.Close", () => []),
   copy: bind<[string], void>("Library.Copy", (text: string) => [text]),
   get: bind<[string], Entry>("Library.Get", (id: string) => [id]),
   import: bind<[string[]], Entry>("Library.Import", (paths: string[]) => [paths]),
@@ -86,9 +86,7 @@ export const Library = {
   search: bind<[string, string[], string], SearchResult[]>("Library.Search", (query: string, tags: string[], kind: string) => [query, tags, kind]),
   tags: bind<[], Tag[]>("Library.Tags", () => []),
   text: bind<[string, string], string>("Library.Text", (id: string, path: string) => [id, path]),
-  update: bind<[Patch, string], Entry>("Library.Update", (patch: Patch, id: string) => [patch, id]),
-  /** Watch 每 2 秒检查其他进程的提交，发现变化后广播 library:changed。 */
-  watch: bind<[], void>("Library.Watch", () => []),
+  update: bind<[string, Patch], Entry>("Library.Update", (id: string, patch: Patch) => [id, patch]),
 } as const;
 
 // ---- Events ----

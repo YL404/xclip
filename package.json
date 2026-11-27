@@ -9,16 +9,18 @@
     "dev:web": "vite --config web/vite.config.ts",
     "build:web": "tsc -p web/tsconfig.json --noEmit && vite build --config web/vite.config.ts",
     "typecheck": "tsc -p web/tsconfig.json --noEmit",
-    "test": "node --test web/test/*.test.js"
+    "test": "tsx --tsconfig web/tsconfig.json --test web/test/*.test.ts"
   },
   "dependencies": {
     "dompurify": "^3.3.3",
     "marked": "^17.0.4",
-    "mygo-runtime": "^0.10.0"
+    "mygo-runtime": "^0.10.0",
+    "preact": "^11.2.0"
   },
   "devDependencies": {
     "happy-dom": "^20.8.3",
     "mygo-cli": "^0.10.0",
+    "tsx": "^4.23.15",
     "typescript": "^7",
     "vite": "^8"
   }

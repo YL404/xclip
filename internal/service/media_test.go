@@ -28,20 +28,20 @@ func TestMediaHandlerServesOwnedVideoRange(t *testing.T) {
 	if err := os.Remove(source); err != nil {
 		t.Fatal(err)
 	}
-	library := NewLibrary(filepath.Join(root, "library"))
+	runtime := NewRuntime(filepath.Join(root, "library"))
 	request := httptest.NewRequest("GET", "xclip-media://localhost/"+entry.Assets[0].ID, nil)
 	request.Header.Set("Range", "bytes=2-5")
 	response := httptest.NewRecorder()
-	MediaHandler(library).ServeHTTP(response, request)
+	MediaHandler(runtime).ServeHTTP(response, request)
 	if response.Code != 206 || response.Body.String() != "2345" {
 		t.Fatalf("自有视频 Range 请求失败: %d %q", response.Code, response.Body.String())
 	}
 	for _, target := range []string{"../../xclip.db", "../secret", "unknown"} {
 		response := httptest.NewRecorder()
-		MediaHandler(library).ServeHTTP(response, httptest.NewRequest("GET", "xclip-media://localhost/"+target, nil))
+		MediaHandler(runtime).ServeHTTP(response, httptest.NewRequest("GET", "xclip-media://localhost/"+target, nil))
 		if response.Code != 404 {
 			t.Errorf("非附件 ID %q 不应返回内容: %d", target, response.Code)
 		}
 	}
-	library.Close()
+	runtime.Close()
 }
