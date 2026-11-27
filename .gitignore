@@ -9,6 +9,3 @@ docs/designs/
 node_modules/
 dist/
 .mygo/
-
-# Local agent skills linked from outside the repo
-/.agents/skills/baoyu-design
